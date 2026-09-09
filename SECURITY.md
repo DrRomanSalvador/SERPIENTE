@@ -1,973 +1,1702 @@
+SECURITY.md
 
 # Política de Seguridad del Sistema CEUTIA
-
-> **Política de seguridad de nivel estratégico para proteger infraestructura crítica de inteligencia territorial**
->
-> *Clasificación: RESTRINGIDO*
-> *Sistema de Inteligencia Territorial para Salvar a la Humanidad*
-
+**Versión:** 3.0.0  
+**Estado:** Normativa de seguridad y requisitos arquitectónicos  
+**Clasificación:** RESTRICTED  
+**Sistema:** CEUTIA  
+**Última revisión:** 2026-09-09
 ---
-
-## 🎯 Propósito Estratégico
-
-Esta política establece controles de seguridad de **nivel militar/inteligencia** para proteger:
-
-- **Infraestructura crítica** — Sistema de alerta temprana territorial
-- **Inteligencia sensible** — Evaluaciones de riesgo, hipótesis, escenarios
-- **Datos clasificados** — Owner (radar territorial), Médico (PHI)
-- **Fuentes de inteligencia** — 30+ fuentes gubernamentales, académicas, sanitarias
-- **Integridad epistemológica** — Prevención de manipulación, desinformación, poison de datos
-
-**Amenazas consideradas:**
-
-- 🎯 Actores estatales (CNI, CIA, SVR, Mossad, etc.)
-- 🎯 Actores no estatales (hacktivistas, criminales, terroristas)
-- 🎯 Amenazas internas (insider threats, compromiso de credenciales)
-- 🎯 Guerra híbrida (desinformación, manipulación, influence operations)
-- 🎯 Ciberataques avanzados (APT, zero-days, supply chain)
-
+## 1. Propósito
+Esta política establece los principios, requisitos y controles de seguridad aplicables al sistema CEUTIA.
+CEUTIA es una plataforma de inteligencia, conocimiento y análisis de fenómenos complejos. Su seguridad debe proteger no solamente la infraestructura tecnológica, sino también la integridad de los datos, las fuentes, la evidencia, el conocimiento derivado, los modelos analíticos, las alertas y las decisiones que puedan apoyarse en ellos.
+La seguridad de CEUTIA se considera una propiedad transversal del sistema.
+El objetivo es garantizar:
+- Confidencialidad.
+- Integridad.
+- Disponibilidad.
+- Autenticidad.
+- Trazabilidad.
+- No repudio cuando resulte técnicamente aplicable.
+- Privacidad.
+- Resiliencia.
+- Integridad epistemológica.
+- Integridad de modelos y procesos analíticos.
 ---
-
-## 🏛️ Marco de Seguridad
-
-### Estándares Aplicados
-
-| Estándar | Nivel | Aplicación |
-|---|---|---|
-| **NIST SP 800-53** | Alto (Federal) | Controles de seguridad |
-| **NIST CSF** | Tier 3 | Identify, Protect, Detect, Respond, Recover |
-| **ISO 27001** | Certificado | SGSI (Sistema de Gestión de Seguridad) |
-| **MITRE ATT&CK** | Enterprise | Detección de técnicas APT |
-| **OWASP Top 10** | A-F | Seguridad de aplicaciones |
-| **CIS Controls v8** | IG2 | Controles esenciales |
-| **GDPR** | Compliance | Protección de datos (UE) |
-| **HIPAA** | Compliance | Datos médicos (EEUU) |
-| **ENS** | Alto | Esquema Nacional de Seguridad (España) |
-
+## 2. Principios fundamentales
+CEUTIA seguirá los siguientes principios:
+1. Zero Trust.
+2. Mínimo privilegio.
+3. Denegación por defecto.
+4. Defensa en profundidad.
+5. Separación de responsabilidades.
+6. Seguridad por diseño.
+7. Privacidad por diseño.
+8. Verificación continua.
+9. Segmentación.
+10. Trazabilidad completa de operaciones críticas.
+11. Gestión explícita de incertidumbre.
+12. Separación entre datos, evidencia, afirmaciones, hipótesis, modelos y decisiones.
+13. Ninguna fuente será considerada fiable únicamente por pertenecer al sistema.
+14. Ningún usuario será considerado autorizado únicamente por estar autenticado.
+15. Ningún resultado generado por IA será considerado automáticamente verdadero.
+16. Ninguna alerta será considerada equivalente a un hecho confirmado.
+17. Ningún control se considerará implementado únicamente porque esté documentado.
 ---
-
-## 🔐 Arquitectura de Seguridad
-
-### Modelo de Confianza Cero (Zero Trust)
-
-**Principios:**
-
-- ✅ **Nunca confiar, siempre verificar** — Autenticación y autorización continuas
-- ✅ **Mínimo privilegio** — Solo acceso necesario, solo cuando necesario
-- ✅ **Microsegmentación** — Redes, servicios, datos aislados
-- ✅ **Asume compromiso** — Detecta, contiene, responde
-
-**Implementación:**
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│                    PERÍMETRO EXTERNO                         │
-│  -  WAF (Web Application Firewall)                            │
-│  -  DDoS Protection (Cloudflare, AWS Shield)                  │
-│  -  Rate Limiting Global (100 req/min por IP)                 │
-│  -  Geo-blocking (países de riesgo)                           │
-└─────────────────────────────────────────────────────────────┘
-                              ↕
-┌─────────────────────────────────────────────────────────────┐
-│                    PERÍMETRO INTERNO                         │
-│  -  API Gateway (autenticación, autorización)                 │
-│  -  Service Mesh (mTLS entre servicios)                       │
-│  -  Network Segmentation (VPC, subnets, security groups)      │
-│  -  IDS/IPS (Intrusion Detection/Prevention)                  │
-└─────────────────────────────────────────────────────────────┘
-                              ↕
-┌─────────────────────────────────────────────────────────────┐
-│                    PERÍMETRO DE DATOS                        │
-│  -  Encriptación (TLS 1.3, AES-256-GCM)                       │
-│  -  Tokenización (datos sensibles)                            │
-│  -  Data Loss Prevention (DLP)                                │
-│  -  Database Activity Monitoring (DAM)                        │
-└─────────────────────────────────────────────────────────────┘
-```
-
-### Separación de Perímetros (Air Gap Lógico)
-
-```
-┌─────────────────────────────────────────────────────────────┐
-│              CAPA PÚBLICA (Sin clasificar)                   │
-│  -  Datos públicos, verificados                               │
-│  -  Sin autenticación o mínima                                │
-│  -  Rate limiting agresivo                                    │
-│  -  CDN (Cloudflare)                                          │
-└─────────────────────────────────────────────────────────────┘
-                    ↕ [API Gateway + JWT + WAF]
-┌─────────────────────────────────────────────────────────────┐
-│              CAPA OWNER (Clasificado: RESTRINGIDO)           │
-│  -  Radar territorial, alertas, riesgos                       │
-│  -  JWT obligatorio + MFA (TOTP/WebAuthn)                     │
-│  -  Network segmentation (VPC privada)                        │
-│  -  Database encryption (TDE)                                 │
-│  -  Auditoría completa (SIEM)                                 │
-└─────────────────────────────────────────────────────────────┘
-                    ↕ [Encriptación + ACLs estrictas]
-┌─────────────────────────────────────────────────────────────┐
-│              CAPA MÉDICA (Clasificado: CONFIDENCIAL)         │
-│  -  Datos clínicos, PHI (HIPAA)                               │
-│  -  Encriptación cliente (Web Crypto API)                     │
-│  -  Encriptación servidor (AES-256-GCM)                       │
-│  -  Acceso solo profesionales autorizados                     │
-│  -  NUNCA se cruza con Owner (air gap lógico)                 │
-└─────────────────────────────────────────────────────────────┘
-```
-
+## 3. Estado de los controles
+Toda medida de seguridad documentada por CEUTIA deberá utilizar uno de los siguientes estados:
+### IMPLEMENTED
+Control implementado técnicamente y verificado.
+### PARTIALLY_IMPLEMENTED
+Control parcialmente implementado o con cobertura incompleta.
+### PLANNED
+Control definido pero todavía no implementado.
+### REQUIRED
+Requisito necesario para alcanzar la arquitectura de seguridad objetivo.
+### REQUIRES_ASSESSMENT
+La aplicabilidad, necesidad o configuración debe determinarse mediante una evaluación técnica, jurídica o de riesgo.
+### NOT_APPLICABLE
+Control evaluado y determinado como no aplicable.
+### NOT_VERIFIED
+Existe una implementación o afirmación que todavía no ha sido suficientemente verificada.
+Ninguna certificación, cumplimiento normativo o control de seguridad se considerará existente sin evidencia verificable.
 ---
-
-## 🛡️ Controles de Seguridad (NIST 800-53)
-
-### AC (Access Control)
-
-| Control | Implementación | Nivel |
-|---|---|---|
-| **AC-2** Account Management | Usuarios creados solo por OWNER, revisión trimestral | Alto |
-| **AC-3** Access Enforcement | RBAC + policy-based authorization | Alto |
-| **AC-6** Least Privilege | Roles con mínimos permisos necesarios | Alto |
-| **AC-7** Unsuccessful Login Attempts | 5 intentos → 15 min bloqueo | Alto |
-| **AC-8** System Use Notification | Banner de advertencia en login | Medio |
-| **AC-11** Session Lock | Timeout 15 min inactividad | Alto |
-| **AC-17** Remote Access | VPN + MFA para acceso remoto | Alto |
-| **AC-18** Wireless Access | WiFi corporativa segmentada | Medio |
-
-### AU (Audit and Accountability)
-
-| Control | Implementación | Nivel |
-|---|---|---|
-| **AU-2** Auditable Events | LOGIN, LOGOUT, CREATE, READ, UPDATE, DELETE, EXPORT, etc. | Alto |
-| **AU-3** Content of Audit Records | Timestamp, usuario, acción, recurso, IP, user-agent, resultado | Alto |
-| **AU-6** Audit Review, Analysis, and Reporting | SIEM (ELK Stack), alertas automáticas | Alto |
-| **AU-9** Protection of Audit Information | Logs inmutables, append-only, WORM storage | Alto |
-| **AU-12** Audit Generation | Logs automáticos para todos los eventos críticos | Alto |
-
-### AT (Awareness and Training)
-
-| Control | Implementación | Nivel |
-|---|---|---|
-| **AT-2** Security Awareness Training | Training obligatorio anual | Medio |
-| **AT-3** Role-Based Security Training | Training específico por rol (OWNER, ANALYST, MEDICAL) | Alto |
-| **AT-4** Security Training Records | Registro de training completado | Medio |
-
-### CM (Configuration Management)
-
-| Control | Implementación | Nivel |
-|---|---|---|
-| **CM-2** Baseline Configuration | Hardening guides (CIS benchmarks) | Alto |
-| **CM-6** Configuration Settings | Configuration management (Ansible, Terraform) | Alto |
-| **CM-7** Least Functionality | Solo servicios necesarios habilitados | Alto |
-| **CM-8** Information System Component Inventory | Inventario automático de activos | Alto |
-| **CM-10** Software Usage Restrictions | Solo software aprobado | Medio |
-
-### CP (Contingency Planning)
-
-| Control | Implementación | Nivel |
-|---|---|---|
-| **CP-2** Contingency Plan | Plan de continuidad de negocio (BCP) | Alto |
-| **CP-6** Alternate Storage Site | Backups en región diferente (DR) | Alto |
-| **CP-7** Alternate Processing Site | Failover automático (multi-AZ) | Alto |
-| **CP-9** Information System Backup | Backups diarios, encriptados, testeados | Alto |
-| **CP-10** Information System Recovery and Reconstitution | RTO < 4h, RPO < 1h | Alto |
-
-### IA (Identification and Authentication)
-
-| Control | Implementación | Nivel |
-|---|---|---|
-| **IA-2** Identification and Authentication (Organizational Users) | JWT + MFA (TOTP/WebAuthn) | Alto |
-| **IA-5** Authenticator Management | Secrets en vault, rotación 90 días | Alto |
-| **IA-6** Authenticator Feedback | Mensajes genéricos de error (no revelar si usuario existe) | Alto |
-| **IA-7** Cryptographic Module Authentication | FIPS 140-2 validated modules | Alto |
-
-### IR (Incident Response)
-
-| Control | Implementación | Nivel |
-|---|---|---|
-| **IR-2** Incident Response Training | Training anual, simulacros | Alto |
-| **IR-4** Incident Handling | Procedimientos documentados, automatización | Alto |
-| **IR-5** Incident Monitoring | SIEM, correlación de eventos | Alto |
-| **IR-6** Incident Reporting | Reporte a dirección, autoridades (GDPR 72h) | Alto |
-| **IR-7** Incident Response Assistance | Equipo de respuesta (CSIRT) | Alto |
-| **IR-8** Incident Response Plan | Plan documentado, actualizado anualmente | Alto |
-
-### SC (System and Communications Protection)
-
-| Control | Implementación | Nivel |
-|---|---|---|
-| **SC-7** Boundary Protection | Firewalls, WAF, IDS/IPS | Alto |
-| **SC-8** Transmission Confidentiality and Integrity | TLS 1.3, HSTS | Alto |
-| **SC-12** Cryptographic Key Establishment and Management | KMS/HSM, rotación 90 días | Alto |
-| **SC-13** Cryptographic Protection | AES-256-GCM, RSA-4096 | Alto |
-| **SC-28** Protection of Information at Rest | TDE, filesystem encriptado | Alto |
-
-### SI (System and Information Integrity)
-
-| Control | Implementación | Nivel |
-|---|---|---|
-| **SI-2** Flaw Remediation | Patch management (crítico < 24h) | Alto |
-| **SI-3** Malicious Code Protection | Antivirus, EDR (Endpoint Detection and Response) | Alto |
-| **SI-4** Information System Monitoring | SIEM, IDS/IPS, network monitoring | Alto |
-| **SI-5** Security Alerts, Advisories, and Directives | Subscripción a CVE, CISA alerts | Alto |
-| **SI-16** Memory Protection | DEP, ASLR habilitados | Alto |
-
+## 4. Marcos de referencia
+CEUTIA utilizará como referencias de diseño y evaluación, cuando sean aplicables:
+- NIST Cybersecurity Framework 2.0.
+- NIST SP 800-53 Rev. 5.
+- NIST SP 800-61 para respuesta a incidentes.
+- NIST SP 800-63 para identidad digital y autenticación.
+- OWASP.
+- MITRE ATT&CK.
+- CIS Controls.
+- ISO/IEC 27001.
+- Reglamento General de Protección de Datos (RGPD).
+- Legislación española aplicable en materia de protección de datos.
+- Esquema Nacional de Seguridad (ENS), cuando resulte jurídicamente aplicable.
+- Reglamento europeo de Inteligencia Artificial y normativa relacionada, cuando resulte aplicable.
+Estos marcos constituyen referencias de diseño y control.
+CEUTIA no declarará estar certificado, acreditado o conforme con un estándar o normativa concreta salvo que exista evidencia formal que permita realizar dicha afirmación.
 ---
-
-## 🔑 Gestión de Identidades y Accesos (IAM)
-
-### Autenticación
-
-#### JWT (JSON Web Tokens)
-
-**Configuración de nivel militar:**
-
-```
-Algoritmo: RS256 (asimétrico, no HS256)
-Tamaño de clave: RSA-4096
-Access token: 15 minutos (corto)
-Refresh token: 24 horas
-Issuer: ceutia.system
-Audience: ceutia.clients
-JTI (JWT ID): UUID único por token
-```
-
-**Claims obligatorios:**
-
-```json
-{
-  "sub": "user-uuid",
-  "iss": "ceutia.system",
-  "aud": "ceutia.clients",
-  "exp": 1694260800,
-  "iat": 1694260200,
-  "nbf": 1694260200,
-  "jti": "token-uuid",
-  "role": "OWNER",
-  "permissions": ["alerts:read", "alerts:write", /* ... */],
-  "mfa_verified": true,
-  "device_id": "device-uuid",
-  "ip_address": "192.168.1.1"
-}
-```
-
-**Validaciones estrictas:**
-
-- ✅ Verificar firma (RS256)
-- ✅ Verificar expiración (exp)
-- ✅ Verificar issuer (iss)
-- ✅ Verificar audience (aud)
-- ✅ Verificar JTI único (no replay)
-- ✅ Verificar MFA (mfa_verified: true)
-- ✅ Verificar IP/device (opcional, alto seguridad)
-
-**Rotación de claves:**
-
-- ✅ Claves RSA rotadas cada 90 días
-- ✅ JWKS endpoint público (/.well-known/jwks.json)
-- ✅ Key versioning (kid claim)
-- ✅ Revocación inmediata en compromiso
-
-#### MFA (Multi-Factor Authentication)
-
-**Obligatorio para:**
-
-- ✅ OWNER
-- ✅ SENIOR_ANALYST
-- ✅ MEDICAL_PROFESSIONAL
-- ✅ Cualquier rol con acceso a datos clasificados
-
-**Métodos soportados (orden de preferencia):**
-
-1. ✅ **WebAuthn / FIDO2** (hardware keys: YubiKey, Titan) — Nivel más alto
-2. ✅ **TOTP** (Google Authenticator, Authy, Microsoft Authenticator)
-3. ✅ **Push notification** (Duo, Okta Verify)
-4. ⚠️ **SMS** (solo fallback, no recomendado para alto riesgo)
-
-**Requisitos:**
-
-- ✅ MFA obligatorio en login
-- ✅ MFA obligatorio para operaciones críticas (export, delete, config changes)
-- ✅ Backup codes (10 códigos, generados criptográficamente, un solo uso)
-- ✅ Device trust (recordar dispositivo 30 días, luego MFA de nuevo)
-- ✅ Revocación inmediata de dispositivos comprometidos
-
-#### Passwords
-
-**Política de nivel militar:**
-
-- ✅ Mínimo **16 caracteres** (no 12)
-- ✅ Complejidad: mayúsculas, minúsculas, números, símbolos
-- ✅ No diccionario (verificar contra listas de passwords comunes)
-- ✅ No reutilización de últimas **24 passwords** (no 10)
-- ✅ Expiración: **60 días** (no 90, más estricto)
-- ✅ Bloqueo: **3 intentos fallidos** → **30 minutos** (no 5/15)
-- ✅ Hashing: **Argon2id** (no bcrypt, más resistente a GPU/ASIC)
-- ✅ Salt: 128 bits mínimo
-- ✅ Memory cost: 64 MB, time cost: 3, parallelism: 4
-
-**Verificación contra listas de passwords comprometidos:**
-
-```typescript
-import { PwnedPassword } from 'hibp';
-
-async function validatePassword(password: string): Promise<boolean> {
-  // Verificar contra Have I Been Pwned
-  const pwned = await PwnedPassword(password);
-  if (pwned) {
-    throw new Error('Password appears in known breaches');
-  }
-  
-  // Verificar complejidad
-  if (password.length < 16) {
-    throw new Error('Password must be at least 16 characters');
-  }
-  
-  // Verificar no diccionario
-  // ...
-  
-  return true;
-}
-```
-
-### Autorización
-
-#### RBAC (Role-Based Access Control)
-
-**Matriz de acceso:**
-
-| Recurso | OWNER | SENIOR_ANALYST | JUNIOR_ANALYST | MEDICAL | CITIZEN |
-|---|---|---|---|---|---|
-| **Alerts** | CRUDA | CRUD | R | R | R (públicas) |
-| **Risks** | CRUDA | CRUD | R | R | - |
-| **Hypotheses** | CRUDA | CRUD | R | R | - |
-| **Scenarios** | CRUDA | CRUD | R | R | - |
-| **Sources** | CRUDA | CRU | R | R | R |
-| **Documents** | CRUDA | CRU | CR | R | R |
-| **Users** | CRUDA | RU | R | R | R (propio) |
-| **Roles** | CRUDA | R | - | - | - |
-| **Config** | CRUDA | RU | R | R | R (pública) |
-| **Audit** | RA | R | - | R | - |
-| **Medical** | R | R | - | CRUDA | RW (propio) |
-
-**Leyenda:** C=Create, R=Read, U=Update, D=Delete, A=Admin
-
-#### ABAC (Attribute-Based Access Control)
-
-**Para acceso granular:**
-
-```typescript
-// Policy: Solo acceso a datos del propio dominio
-function domainAccessPolicy(user: User, resource: Resource): boolean {
-  if (user.role === 'OWNER') return true;
-  if (user.role === 'SENIOR_ANALYST') return true;
-  if (user.role === 'JUNIOR_ANALYST') {
-    return user.assignedDomains.includes(resource.domain);
-  }
-  return false;
-}
-
-// Policy: Solo acceso en horario laboral (para ciertos roles)
-function timeBasedPolicy(user: User, request: Request): boolean {
-  if (user.role === 'OWNER') return true;
-  if (user.role === 'SENIOR_ANALYST') return true;
-  
-  const hour = new Date().getHours();
-  return hour >= 8 && hour <= 20; // 8:00 - 20:00
-}
-
-// Policy: Solo desde IPs corporativas (para Owner)
-function locationBasedPolicy(user: User, request: Request): boolean {
-  if (user.role !== 'OWNER') return true;
-  
-  const corporateIPs = ['192.168.1.0/24', '10.0.0.0/8'];
-  return isIPInRange(request.ip, corporateIPs);
-}
-```
-
-#### Policy Engine
-
-**Implementación con Open Policy Agent (OPA):**
-
-```rego
-# policy.rego
-package ceutia.authz
-
-default allow = false
-
-# Owner tiene acceso total
-allow {
-  input.user.role == "OWNER"
-}
-
-# Senior analyst tiene acceso read/write a alerts
-allow {
-  input.user.role == "SENIOR_ANALYST"
-  input.resource == "alerts"
-  input.action in ["read", "write", "create", "update", "delete"]
-}
-
-# Junior analyst solo tiene acceso read a alerts
-allow {
-  input.user.role == "JUNIOR_ANALYST"
-  input.resource == "alerts"
-  input.action == "read"
-}
-
-# Medical solo tiene acceso a medical
-allow {
-  input.user.role == "MEDICAL_PROFESSIONAL"
-  input.resource == "medical"
-}
-
-# Citizen solo tiene acceso read a public
-allow {
-  input.user.role == "CITIZEN"
-  input.resource == "public"
-  input.action == "read"
-}
-```
-
+# 5. Modelo de amenazas
+CEUTIA adoptará un modelo de amenazas que contemple simultáneamente amenazas técnicas, humanas, organizativas, informacionales y epistemológicas.
+Se contemplarán, entre otras:
+- Explotación de vulnerabilidades.
+- Malware.
+- Ransomware.
+- Phishing.
+- Credential stuffing.
+- Brute force.
+- Robo de credenciales.
+- Escalada de privilegios.
+- Movimiento lateral.
+- Exfiltración.
+- DDoS.
+- Ataques contra APIs.
+- Inyección.
+- SSRF.
+- XSS.
+- CSRF.
+- Deserialización insegura.
+- Compromiso de dependencias.
+- Supply-chain attacks.
+- Compromiso de proveedores.
+- Insider threat.
+- Manipulación de datos.
+- Data poisoning.
+- Model poisoning.
+- Manipulación de fuentes.
+- Campañas coordinadas de desinformación.
+- Manipulación de indicadores.
+- Manipulación de alertas.
+- Compromiso de modelos de IA.
+- Compromiso de sistemas de autenticación.
+- Compromiso de infraestructura.
+El modelo de amenazas deberá actualizarse conforme evolucionen la arquitectura, los activos, las dependencias, los adversarios y el contexto operativo.
 ---
+# 6. Seguridad epistemológica
+La seguridad de CEUTIA incluye la protección de la integridad del conocimiento.
+Se considera una amenaza de seguridad cualquier acción capaz de introducir, modificar, ocultar o amplificar información de forma que pueda alterar incorrectamente las conclusiones del sistema.
+CEUTIA deberá preservar la cadena:
+```text
+DATO
+  ↓
+OBSERVACIÓN
+  ↓
+EVIDENCIA
+  ↓
+AFIRMACIÓN
+  ↓
+HIPÓTESIS
+  ↓
+ANÁLISIS
+  ↓
+INDICADOR
+  ↓
+EVALUACIÓN DE RIESGO
+  ↓
+ALERTA
+  ↓
+DECISIÓN
 
-## 🔒 Encriptación
-
-### En Tránsito
-
-**Configuración TLS 1.3 (nivel militar):**
-
-```nginx
-# Nginx configuration
-ssl_protocols TLSv1.3;
-ssl_prefer_server_ciphers off;
-
-# Cipher suites (solo fuertes)
-ssl_ciphers 'TLS_AES_256_GCM_SHA384:TLS_CHACHA20_POLY1305_SHA256';
-
-# HSTS (1 año, includeSubDomains, preload)
-add_header Strict-Transport-Security "max-age=31536000; includeSubDomains; preload" always;
-
-# OCSP Stapling
-ssl_stapling on;
-ssl_stapling_verify on;
-resolver 8.8.8.8 8.8.4.4 valid=300s;
-resolver_timeout 5s;
-
-# Certificate transparency
-add_header Expect-CT "max-age=31536000; enforce; report-uri=\"[https://ceutia.report-uri.com/rpt/ct](https://ceutia.report-uri.com/rpt/ct)\"" always;
-```
-
-**Certificados:**
-
-- ✅ CA comercial (DigiCert, Sectigo) o Let's Encrypt (dev)
-- ✅ Validación OV (Organization Validated) mínimo
-- ✅ EV (Extended Validation) recomendado para producción
-- ✅ Rotación automática (90 días Let's Encrypt, 1-2 años comercial)
-- ✅ Certificate pinning (mobile apps)
+Cada etapa deberá conservar, cuando corresponda, su relación con las etapas anteriores.
+
+El sistema no deberá permitir que una conclusión pierda su procedencia durante las transformaciones analíticas.
+
+⸻
+
+7. Procedencia
 
-### En Reposo
+Los datos y evidencias relevantes deberán mantener información suficiente para reconstruir su origen y transformación.
 
-#### Base de Datos
+Cuando sea aplicable se almacenarán:
 
-**PostgreSQL TDE (Transparent Data Encryption):**
+* Identificador de fuente.
+* Tipo de fuente.
+* Identificador del recurso original.
+* Fecha de adquisición.
+* Fecha de publicación.
+* Fecha de observación.
+* Método de adquisición.
+* Transformaciones realizadas.
+* Versión del extractor.
+* Versión del pipeline.
+* Identificador del dato.
+* Hash o mecanismo de integridad cuando resulte apropiado.
+* Relación con evidencias derivadas.
+* Relación con afirmaciones derivadas.
 
-```sql
--- Habilitar encriptación
-ALTER SYSTEM SET ssl = on;
-ALTER SYSTEM SET ssl_cert_file = '/path/to/server.crt';
-ALTER SYSTEM SET ssl_key_file = '/path/to/server.key';
+La pérdida de procedencia deberá considerarse una degradación de la calidad e integridad del conocimiento.
 
--- Encriptación a nivel de columna (datos sensibles)
-CREATE EXTENSION IF NOT EXISTS pgcrypto;
+⸻
 
-CREATE TABLE medical_consultations (
-  id UUID PRIMARY KEY,
-  patient_id UUID NOT NULL,
-  symptoms_encrypted BYTEA NOT NULL, -- Encriptado
-  diagnosis_encrypted BYTEA, -- Encriptado
-  created_at TIMESTAMPTZ DEFAULT NOW()
-);
+8. Independencia de fuentes
 
--- Función de encriptación
-CREATE OR REPLACE FUNCTION encrypt_data(data TEXT, key TEXT)
-RETURNS BYTEA AS $$
-BEGIN
-  RETURN pgp_sym_encrypt(data, key);
-END;
-$$ LANGUAGE plpgsql;
+CEUTIA deberá distinguir entre:
 
--- Función de desencriptación
-CREATE OR REPLACE FUNCTION decrypt_data(data BYTEA, key TEXT)
-RETURNS TEXT AS $$
-BEGIN
-  RETURN pgp_sym_decrypt(data, key);
-END;
-$$ LANGUAGE plpgsql;
-```
+* Número de documentos.
+* Número de observaciones.
+* Número de fuentes.
+* Número de fuentes independientes.
 
-#### Object Storage
+La repetición de una misma información por múltiples canales no deberá interpretarse automáticamente como corroboración independiente.
 
-**S3 Server-Side Encryption:**
+El sistema deberá conservar, cuando sea posible, las relaciones de dependencia entre fuentes.
 
-```json
-{
-  "Rules": [
-    {
-      "ApplyServerSideEncryptionByDefault": {
-        "SSEAlgorithm": "aws:kms",
-        "KMSMasterKeyID": "arn:aws:kms:eu-west-1:123456789012:key/12345678-1234-1234-1234-123456789012"
-      }
-    }
-  ]
-}
-```
+⸻
 
-**Encriptación cliente (antes de subir):**
+9. Corroboración
 
-```typescript
-import { createCipheriv, randomBytes } from 'crypto';
+Las afirmaciones relevantes podrán incorporar:
 
-function encryptFile(file: Buffer, key: Buffer): { ciphertext: Buffer, iv: Buffer } {
-  const iv = randomBytes(16);
-  const cipher = createCipheriv('aes-256-gcm', key, iv);
-  
-  let ciphertext = cipher.update(file);
-  ciphertext = Buffer.concat([ciphertext, cipher.final()]);
-  
-  return { ciphertext, iv };
-}
-```
+* Evidencia favorable.
+* Evidencia contradictoria.
+* Fuentes independientes.
+* Calidad de las fuentes.
+* Antigüedad.
+* Consistencia temporal.
+* Consistencia espacial.
+* Consistencia interna.
+* Incertidumbre.
+* Confianza.
 
-#### Backups
+La confianza no deberá incrementarse únicamente por el número bruto de documentos cuando estos procedan de una misma fuente primaria o de fuentes dependientes.
 
-**Encriptación de backups:**
+⸻
 
-```bash
-# Encriptar backup con GPG
-gpg --symmetric --cipher-algo AES256 --output backup.sql.gpg backup.sql
+10. Contradicciones
 
-# O con OpenSSL
-openssl enc -aes-256-cbc -salt -in backup.sql -out backup.sql.enc -pass pass:$BACKUP_PASSWORD
-```
+Las contradicciones deberán conservarse como información.
 
-**Almacenamiento seguro:**
+Una evidencia contradictoria no deberá eliminarse automáticamente para aumentar artificialmente la coherencia del sistema.
 
-- ✅ Backups encriptados (AES-256)
-- ✅ Keys en KMS/HSM separado
-- ✅ Regiones diferentes (DR)
-- ✅ Acceso limitado (solo Owner + backup service)
+El sistema deberá poder representar:
 
----
+CLAIM A
+   ↑
+EVIDENCE 1
+CLAIM B
+   ↑
+EVIDENCE 2
+CLAIM A ≠ CLAIM B
 
-## 🚫 Prevención de Amenazas Avanzadas
+La resolución de la contradicción deberá quedar registrada cuando se produzca.
 
-### APT (Advanced Persistent Threats)
+⸻
 
-#### Detección
+11. Incidentes epistemológicos
 
-**Señales de APT:**
+Se considerará incidente de seguridad cualquier evento capaz de alterar materialmente la integridad del conocimiento, aunque no exista una intrusión técnica convencional.
 
-- 🚨 Reconocimiento prolongado (scanning, enumeration)
-- 🚨 Movimiento lateral (acceso a múltiples sistemas)
-- 🚨 Persistencia (backdoors, scheduled tasks)
-- 🚨 Exfiltración (tráfico inusual, horarios extraños)
-- 🚨 Credential dumping (mimikatz, hashes)
+Ejemplos:
 
-**Controles de detección:**
+* Fuente comprometida.
+* Datos falsificados.
+* Manipulación coordinada de fuentes.
+* Contaminación de datasets.
+* Alteración de procedencia.
+* Falsificación de corroboración.
+* Eliminación selectiva de evidencia contradictoria.
+* Manipulación de indicadores.
+* Alteración de resultados analíticos.
+* Manipulación de modelos.
+* Manipulación de alertas.
+* Introducción deliberada de sesgos.
 
-- ✅ SIEM (correlación de eventos)
-- ✅ EDR (Endpoint Detection and Response)
-- ✅ Network Traffic Analysis (NTA)
-- ✅ User Behavior Analytics (UBA)
-- ✅ Honeypots (detección de intrusos)
+Estos incidentes deberán poder investigarse mediante los mecanismos de auditoría y procedencia del sistema.
 
-#### Mitigación
+⸻
 
-- ✅ Patch management agresivo (crítico < 24h)
-- ✅ Application whitelisting
-- ✅ Network segmentation (microsegmentación)
-- ✅ Least privilege estricto
-- ✅ MFA universal
-- ✅ Logging centralizado (SIEM)
-- ✅ Incident response plan probado
+12. Clasificación de la información
 
-### Supply Chain Attacks
+CEUTIA utilizará como mínimo las siguientes categorías:
 
-#### Prevención
+PUBLIC
 
-**Dependencias:**
+Información destinada a exposición pública.
 
-- ✅ Lock files (package-lock.json, yarn.lock)
-- ✅ Dependency scanning (npm audit, Snyk, Dependabot)
-- ✅ Private registry (npm registry privado, Nexus, Artifactory)
-- ✅ Code signing (commits firmados con GPG)
-- ✅ CI/CD seguro (GitHub Actions con OIDC, no secrets hardcoded)
+INTERNAL
 
-**Infraestructura:**
+Información interna cuyo acceso debe estar limitado a usuarios autorizados.
 
-- ✅ Infrastructure as Code (Terraform, versionado)
-- ✅ Immutable infrastructure (no cambios manuales)
-- ✅ Golden images (pre-hardened, escaneadas)
-- ✅ Container scanning (Trivy, Clair)
+RESTRICTED
 
-### Insider Threats
+Información cuyo acceso debe estar estrictamente limitado debido a su sensibilidad.
 
-#### Detección
+CONFIDENTIAL
 
-**Señales:**
+Información de alta sensibilidad cuyo acceso estará restringido a usuarios específicamente autorizados.
 
-- 🚨 Acceso a datos fuera de horario laboral
-- 🚨 Descarga masiva de datos
-- 🚨 Acceso a recursos no relacionados con el rol
-- 🚨 Múltiples intentos de acceso fallidos
-- 🚨 Uso de dispositivos USB no autorizados
+HIGHLY_RESTRICTED
 
-**Controles:**
+Información de máxima sensibilidad dentro del sistema.
 
-- ✅ DLP (Data Loss Prevention)
-- ✅ UEBA (User and Entity Behavior Analytics)
-- ✅ Logging de todas las acciones (auditoría)
-- ✅ Separación de duties (no una persona controla todo)
-- ✅ Background checks (para roles críticos)
+La clasificación deberá estar asociada al objeto de información y deberá participar en las decisiones de autorización.
 
----
+⸻
 
-## 🛡️ Defensas Perimetrales
+13. Separación PUBLIC / OWNER
 
-### WAF (Web Application Firewall)
+CEUTIA deberá mantener una separación técnica y lógica entre el dominio público y el dominio privado de propietarios y analistas.
 
-**Reglas OWASP CRS (Core Rule Set):**
+Arquitectura conceptual:
 
-```
-# ModSecurity / OWASP CRS
-SecRuleEngine On
-SecRequestBodyAccess On
-SecResponseBodyAccess Off
+                    INTERNET
+                       │
+                       ▼
+                PUBLIC INTERFACE
+                       │
+                       ▼
+                 PUBLIC SERVICES
+                       │
+                       ▼
+                  PUBLIC DATA
+                       
+                       X
+                 NO DIRECT ACCESS
+                       X
+                 OWNER SERVICES
+                       │
+             ┌─────────┴─────────┐
+             ▼                   ▼
+       RESTRICTED DATA     PRIVATE ANALYSIS
+             │                   │
+             └─────────┬─────────┘
+                       ▼
+                OWNER DOMAIN
 
-# SQL Injection
-SecRule ARGS "@detectSQLi" "id:1,deny,status:403,msg:'SQL Injection'"
+La interfaz pública no deberá acceder directamente a bases de datos privadas.
 
-# XSS
-SecRule ARGS "@detectXSS" "id:2,deny,status:403,msg:'XSS'"
+La publicación de información desde OWNER hacia PUBLIC deberá realizarse mediante una capa explícita de publicación, filtrado y sanitización.
 
-# RCE
-SecRule ARGS "@detectRCE" "id:3,deny,status:403,msg:'RCE'"
+⸻
 
-# Path Traversal
-SecRule ARGS "@detectPathTraversal" "id:4,deny,status:403,msg:'Path Traversal'"
-```
+14. Identidad
 
-**Reglas personalizadas:**
+Toda identidad deberá ser:
 
-```
-# Bloquear países de riesgo (ejemplos)
-SecRule GEO:COUNTRY_CODE "@pmFromFile geo-ip-blocklist.txt" "id:100,deny,status:403"
+* Única.
+* Identificable.
+* Autenticable.
+* Revocable.
+* Auditable.
 
-# Rate limiting por IP
-SecAction "id:200,phase:1,nolog,pass,initcol:ip=%{REMOTE_ADDR},setvar:ip.request_count=+1,expirevar:ip.request_count=60"
-SecRule IP:REQUEST_COUNT "@gt 100" "id:201,deny,status:429,msg:'Rate limit exceeded'"
-```
+Las cuentas compartidas estarán prohibidas salvo excepción técnicamente justificada y expresamente controlada.
 
-### DDoS Protection
+Las cuentas privilegiadas deberán estar separadas de las cuentas de uso ordinario cuando sea necesario para reducir riesgo.
 
-**Cloudflare / AWS Shield:**
+⸻
 
-- ✅ Rate limiting global (100 req/min por IP)
-- ✅ Challenge (CAPTCHA) para tráfico sospechoso
-- ✅ Geo-blocking (países de riesgo)
-- ✅ Bot protection (detección de bots)
-- ✅ Anycast (distribución de tráfico)
-- ✅ Auto-scaling (absorber picos)
+15. Autenticación
 
-**Configuración:**
+La autenticación deberá seguir:
 
-```json
-{
-  "rate_limit": {
-    "threshold": 100,
-    "period": 60,
-    "action": "block"
-  },
-  "waf": {
-    "rules": ["owasp-crs", "custom-rules"],
-    "mode": "block"
-  },
-  "bot_fight_mode": "on",
-  "geo_restrictions": {
-    "whitelist": ["ES", "PT", "FR", "DE", "GB", "US"],
-    "block_unknown": false
-  }
-}
-```
+* Denegación por defecto.
+* MFA para cuentas privilegiadas.
+* Protección contra ataques automatizados.
+* Gestión segura de sesiones.
+* Revocación.
+* Rotación de credenciales.
+* Registro de eventos.
+* Detección de comportamientos anómalos.
 
-### IDS/IPS (Intrusion Detection/Prevention)
+Se priorizarán mecanismos resistentes al phishing.
 
-**Snort / Suricata reglas:**
+⸻
 
-```
-# Detectar scanning
-alert tcp any any -> any any (msg:"Port scan detected"; flags:S; threshold:type threshold, track by_src, count 20, seconds 60; sid:1000001;)
+16. MFA
 
-# Detectar brute force SSH
-alert tcp any any -> any 22 (msg:"SSH brute force"; flow:to_server; threshold:type threshold, track by_src, count 5, seconds 60; sid:1000002;)
+Los mecanismos preferentes serán:
 
-# Detectar SQL injection
-alert http any any -> any any (msg:"SQL injection attempt"; content:"SELECT"; nocase; content:"FROM"; nocase; sid:1000003;)
-```
+1. WebAuthn / FIDO2.
+2. TOTP.
+3. Otros mecanismos de autenticación robustos evaluados.
+4. SMS únicamente cuando exista una justificación operacional y no exista una alternativa adecuada.
 
----
+Las cuentas con privilegios administrativos deberán utilizar MFA.
 
-## 📊 Monitoreo y Detección (SIEM)
+⸻
 
-### SIEM (Security Information and Event Management)
+17. Contraseñas
 
-**Stack:** ELK (Elasticsearch, Logstash, Kibana) + Wazuh
+Las contraseñas deberán:
 
-**Logs centralizados:**
+* Permitir una longitud elevada.
+* Admitir passphrases.
+* No almacenarse nunca en texto claro.
+* Utilizar un algoritmo moderno de password hashing.
+* Incorporar protección frente a credenciales comprometidas cuando resulte viable.
+* Estar protegidas frente a ataques automatizados.
+* Estar sometidas a controles de intento y bloqueo apropiados.
 
-- ✅ Application logs (todos los servicios)
-- ✅ System logs (syslog, journalctl)
-- ✅ Database logs (PostgreSQL audit)
-- ✅ Network logs (firewall, IDS/IPS)
-- ✅ Access logs (WAF, API Gateway)
-- ✅ Authentication logs (JWT, MFA, login attempts)
+Se utilizará preferentemente Argon2id o un mecanismo criptográfico equivalente considerado adecuado.
 
-**Correlación de eventos:**
+No se utilizará una expiración periódica arbitraria como principal mecanismo de seguridad.
 
-```
-# Regla de correlación: Brute force + Login exitoso = Compromiso potencial
-IF
-  failed_login_attempts >= 5 FROM same_ip WITHIN 5_minutes
-  AND successful_login FROM same_ip WITHIN 10_minutes
-THEN
-  alert_severity = "HIGH"
-  alert_message = "Possible compromised account after brute force"
-  actions = [notify_soc, lock_account, force_password_reset]
-```
+⸻
 
-### Alertas de Seguridad
+18. Autorización
 
-**Niveles:**
+La autenticación no implica autorización.
 
-| Nivel | Descripción | Ejemplo | Response Time |
-|---|---|---|---|
-| **Crítico** | Brecha activa, sistema comprometido | Data exfiltration, ransomware | Inmediato (< 15 min) |
-| **Alto** | Ataque en progreso, vulnerabilidad explotada | SQL injection exitoso, APT detectado | < 1 hora |
-| **Medio** | Intento de ataque bloqueado | Brute force detectado, scanning | < 4 horas |
-| **Bajo** | Anomalía menor, configuración insegura | Tráfico inusual, certificado próximo a expirar | < 24 horas |
+Toda operación sensible deberá comprobar:
 
-**Canales de notificación:**
+IDENTIDAD
++
+ROL
++
+PERMISO
++
+RECURSO
++
+CLASIFICACIÓN
++
+TENANT
++
+OPERACIÓN
++
+CONTEXTO
 
-- ✅ Crítico: PagerDuty, SMS, teléfono
-- ✅ Alto: Slack, email, Telegram
-- ✅ Medio: Email, Slack
-- ✅ Bajo: Email, dashboard
+La autorización deberá aplicarse en backend.
 
----
+Los controles de interfaz no se considerarán controles de seguridad suficientes.
 
-## 🚨 Respuesta a Incidentes
+⸻
 
-### CSIRT (Computer Security Incident Response Team)
+19. RBAC y ABAC
 
-**Roles:**
+CEUTIA podrá utilizar conjuntamente:
 
-- ✅ **Incident Manager** — Coordina respuesta
-- ✅ **Technical Lead** — Análisis técnico, contención
-- ✅ **Communications** — Notificaciones internas/externas
-- ✅ **Legal/Compliance** — GDPR, autoridades
-- ✅ **Forensics** — Preservación de evidencia
+* RBAC.
+* ABAC.
+* Políticas contextuales.
+* Políticas de mínimo privilegio.
+* Separación de funciones.
 
-### Procedimiento de Respuesta
+Roles iniciales:
 
-**Fases (NIST SP 800-61):**
+OWNER
+SENIOR_ANALYST
+ANALYST
+MEDICAL
+AUDITOR
+SERVICE
+PUBLIC
 
-1. ✅ **Preparación** — Herramientas, training, procedimientos
-2. ✅ **Detección y Análisis** — Identificar, clasificar, priorizar
-3. ✅ **Contención, Erradicación y Recuperación** — Aislar, eliminar, restaurar
-4. ✅ **Post-Incident Activity** — Lecciones aprendidas, mejoras
+La definición definitiva de roles y permisos deberá mantenerse en un sistema versionado y auditable.
 
-### Playbooks
+⸻
 
-#### Playbook: SQL Injection
+20. Tokens y sesiones
 
-```
-1. DETECCIÓN
-   - WAF detecta patrón SQL injection
-   - SIEM correlaciona múltiples intentos
+Cuando se utilicen tokens:
 
-2. CLASIFICACIÓN
-   - Nivel: Alto (si exitoso), Medio (si bloqueado)
+* deberán validarse correctamente;
+* deberán tener expiración;
+* deberán poder revocarse cuando sea necesario;
+* deberán existir mecanismos de rotación de claves;
+* las claves privadas deberán mantenerse fuera del código fuente;
+* deberán evitar contener información sensible innecesaria.
 
-3. CONTENCIÓN
-   - Bloquear IP atacante (WAF, firewall)
-   - Invalidar sesiones desde esa IP
-   - Si exitoso: revocar accesos comprometidos
+Los tokens de larga duración no deberán utilizarse como sustituto de una política de autorización dinámica.
 
-4. ANÁLISIS
-   - Revisar logs (WAF, application, database)
-   - Determinar alcance (qué datos accedidos)
-   - Identificar vulnerabilidad (endpoint, query)
+Las sesiones deberán disponer de mecanismos adecuados de invalidación.
 
-5. ERRADICACIÓN
-   - Patchear vulnerabilidad (input validation, parameterized queries)
-   - Rotar credentials si comprometidos
+⸻
 
-6. RECUPERACIÓN
-   - Restaurar servicio normal
-   - Monitorear actividad sospechosa
+21. Gestión criptográfica
 
-7. POST-INCIDENT
-   - Documentar incidente
-   - Lecciones aprendidas
-   - Mejorar controles (WAF rules, code review)
-```
+CEUTIA utilizará algoritmos criptográficos modernos y adecuadamente configurados.
 
-#### Playbook: Data Exfiltration
+Las claves deberán:
 
-```
-1. DETECCIÓN
-   - DLP detecta transferencia masiva de datos
-   - SIEM correlaciona con acceso inusual
+* Estar separadas de los datos que protegen.
+* Tener controles de acceso.
+* Ser rotables.
+* Tener ciclos de vida definidos.
+* Estar protegidas frente a extracción.
+* No aparecer en código fuente.
+* No aparecer en logs.
+* No aparecer en repositorios públicos.
 
-2. CLASIFICACIÓN
-   - Nivel: Crítico
+La selección concreta de algoritmos deberá realizarse conforme al caso de uso y al estado actual de la criptografía.
 
-3. CONTENCIÓN
-   - Bloquear transferencia (firewall, DLP)
-   - Revocar accesos del usuario/IP
-   - Aislar sistema comprometido
+⸻
 
-4. ANÁLISIS
-   - Determinar qué datos exfiltrados
-   - Identificar vector de ataque
-   - Determinar alcance temporal
+22. Cifrado en tránsito
 
-5. NOTIFICACIÓN
-   - Dirección (inmediato)
-   - Autoridades (GDPR 72h)
-   - Usuarios afectados (si PHI o datos personales)
+Todo tráfico sensible deberá utilizar canales cifrados.
 
-6. ERRADICACIÓN Y RECUPERACIÓN
-   - Eliminar acceso atacante
-   - Patchear vulnerabilidades
-   - Rotar todos los secrets
+La arquitectura deberá priorizar:
 
-7. POST-INCIDENT
-   - Forensics completo
-   - Mejoras de controles
-   - Training adicional
-```
+* TLS 1.3.
+* TLS 1.2 únicamente cuando exista necesidad de compatibilidad.
+* Certificados válidos.
+* Renovación controlada.
+* Configuraciones criptográficas mantenidas y revisadas.
 
----
+No se utilizarán protocolos criptográficos obsoletos salvo excepción expresamente documentada.
 
-## 📝 Cumplimiento y Auditoría
+⸻
 
-### Auditorías
+23. Cifrado en reposo
 
-**Internas:**
+Los datos sensibles deberán protegerse mediante cifrado en reposo adecuado al riesgo.
 
-- ✅ Mensual: revisión de accesos, permisos, logs
-- ✅ Trimestral: vulnerability scanning, penetration testing
-- ✅ Semestral: auditoría completa de seguridad
-- ✅ Anual: certificación (ISO 27001, SOC 2)
+Podrán utilizarse:
 
-**Externas:**
+* Cifrado de discos.
+* Cifrado de volúmenes.
+* Cifrado proporcionado por la infraestructura.
+* Cifrado de aplicación.
+* Cifrado selectivo de campos.
 
-- ✅ Anual: auditoría ISO 27001
-- ✅ Anual: SOC 2 Type II
-- ✅ Bienal: penetration testing por terceros
-- ✅ Continuo: vulnerability scanning (external)
+El cifrado a nivel de campo no deberá confundirse con TDE.
 
-### Certificaciones
+El uso de pgcrypto para determinados campos no constituye por sí mismo cifrado completo de la base de datos o del almacenamiento.
 
-| Certificación | Nivel | Estado |
-|---|---|---|
-| **ISO 27001** | Certificado | Requerido (producción) |
-| **SOC 2 Type II** | Certificado | Requerido (producción) |
-| **ENS Alto** | Certificado | Requerido (España, sector público) |
-| **HIPAA** | Compliance | Requerido (módulo médico) |
-| **GDPR** | Compliance | Requerido (UE) |
+Las claves deberán gestionarse independientemente de los datos cifrados.
 
-### Reportes de Vulnerabilidades
+⸻
 
-**Proceso seguro:**
+24. Gestión de secretos
 
-1. ✅ Reporte recibido (security@ceutia.system, PGP encriptado)
-2. ✅ Acknowledgment (24 horas)
-3. ✅ Triaje (clasificar severidad: crítico, alto, medio, bajo)
-4. ✅ Reproducción (validar vulnerabilidad)
-5. ✅ Fix (desarrollar, testear, code review)
-6. ✅ Despliegue (patch en producción)
-7. ✅ Notificación (reporter, usuarios si afectado, autoridades si requerido)
-8. ✅ Publicación (security advisory, CVE si aplica)
-9. ✅ Post-mortem (lecciones aprendidas)
+Los secretos deberán estar separados del código fuente.
 
-**Tiempos de respuesta (SLA):**
+Se consideran secretos:
 
-| Severidad | Acknowledgment | Fix | Publicación |
-|---|---|---|---|
-| **Crítico** | 4 horas | 24 horas | 72 horas |
-| **Alto** | 24 horas | 7 días | 14 días |
-| **Medio** | 72 horas | 30 días | 60 días |
-| **Bajo** | 7 días | 90 días | 180 días |
+* Passwords.
+* API keys.
+* Tokens.
+* Claves privadas.
+* Credenciales de bases de datos.
+* Claves de firma.
+* Claves de cifrado.
+* Credenciales de proveedores.
 
-**Recompensas (Bug Bounty):**
+Los secretos de producción no deberán almacenarse en el repositorio.
 
-- ✅ Crítico: €5,000 - €10,000
-- ✅ Alto: €2,000 - €5,000
-- ✅ Medio: €500 - €2,000
-- ✅ Bajo: €100 - €500
+Los archivos .env se limitarán al desarrollo local y nunca deberán contener secretos de producción versionados.
 
----
+⸻
 
-## 🎯 Métricas de Seguridad (KPIs)
+25. Base de datos
 
-| Métrica | Objetivo | Frecuencia |
-|---|---|---|
-| **Time to Detect (MTTD)** | < 1 hora | Mensual |
-| **Time to Respond (MTTR)** | < 4 horas | Mensual |
-| **Vulnerability Patch Time (crítico)** | < 24 horas | Semanal |
-| **Failed Login Rate** | < 1% | Diario |
-| **MFA Adoption** | 100% (roles privilegiados) | Mensual |
-| **Security Training Completion** | 100% | Trimestral |
-| **Incident Count** | Tendencia decreciente | Mensual |
-| **Audit Findings Remediation** | 100% en 30 días | Mensual |
+Las bases de datos deberán aplicar:
 
----
+* Mínimo privilegio.
+* Roles separados.
+* Autenticación fuerte.
+* Conexiones cifradas.
+* Segmentación de red.
+* Migraciones controladas.
+* Backups.
+* Auditoría.
+* Restricciones de acceso.
+* Protección frente a consultas no autorizadas.
 
-## 📞 Contacto
+Las bases de datos OWNER no deberán estar directamente expuestas a Internet.
 
-**Reportar vulnerabilidades:**
+⸻
 
-- Email: security@ceutia.system (PGP: [fingerprint])
-- GitHub: Security Advisories (privado)
-- Signal: +XX XXX XXX XXX (solo emergencias críticas)
+26. APIs
 
-**NUNCA reportar en:**
+Las APIs deberán incorporar:
 
-- ❌ Issues públicos de GitHub
-- ❌ Foros públicos
-- ❌ Redes sociales
-- ❌ Email no encriptado (si contiene detalles sensibles)
+* Autenticación.
+* Autorización.
+* Validación de entradas.
+* Validación de salidas.
+* Rate limiting.
+* Timeouts.
+* Límites de tamaño.
+* Gestión segura de errores.
+* Logging.
+* Versionado.
 
-**Emergencias críticas (brecha activa):**
+Los errores no deberán revelar información interna innecesaria.
 
-- Teléfono: +XX XXX XXX XXX (24/7)
-- Signal: +XX XXX XXX XXX
-- Telegram: @ceutia_security
+No deberán exponerse:
 
----
+* Stack traces.
+* Secretos.
+* Credenciales.
+* Información interna sensible.
+* Detalles innecesarios de infraestructura.
 
-*Esta política de seguridad es **vinculante** para todos los componentes, contribuidores y operadores de CEUTIA.*
+⸻
 
-*Su cumplimiento es **obligatorio** para proteger infraestructura crítica de inteligencia territorial.*
+27. Validación de entradas
 
-*Violaciones serán investigadas y pueden resultar en acciones disciplinarias, legales o penales.*
+Toda entrada externa deberá considerarse no confiable.
 
----
+Deberá validarse:
 
-**Clasificación:** RESTRINGIDO  
-**Última actualización:** Septiembre 2026  
-**Versión:** 2.0.0  
-**Próxima revisión:** Diciembre 2026
-```
+* Tipo.
+* Longitud.
+* Formato.
+* Rango.
+* Encoding.
+* Estructura.
+* Semántica.
+* Autorización contextual.
 
-***
+La validación del frontend no sustituirá a la validación del backend.
+
+⸻
+
+28. SSRF
+
+Todo componente que pueda recuperar recursos mediante una URL proporcionada por terceros deberá incorporar controles contra SSRF.
+
+Deberán contemplarse:
+
+* Protocolos permitidos.
+* Resolución DNS.
+* Direcciones privadas.
+* Loopback.
+* Link-local.
+* Endpoints de metadata.
+* Redirects.
+* Protocolos no autorizados.
+* Allowlist cuando corresponda.
+
+⸻
+
+29. Ingesta de información externa
+
+Todo contenido externo deberá considerarse potencialmente no confiable.
+
+Esto incluye:
+
+* Noticias.
+* RSS.
+* APIs.
+* Redes sociales.
+* Documentos.
+* Archivos.
+* Imágenes.
+* Feeds.
+* Datos gubernamentales.
+* Datos de terceros.
+* Fuentes automatizadas.
+
+El contenido externo no deberá convertirse automáticamente en conocimiento confiable.
+
+La arquitectura será:
+
+EXTERNAL DATA
+      ↓
+INGESTION
+      ↓
+VALIDATION
+      ↓
+NORMALIZATION
+      ↓
+DEDUPLICATION
+      ↓
+PROVENANCE
+      ↓
+QUALITY
+      ↓
+CORROBORATION
+      ↓
+KNOWLEDGE
+
+⸻
+
+30. Seguridad de la cadena de suministro
+
+Las dependencias de software deberán estar controladas.
+
+Se utilizarán progresivamente:
+
+* Lockfiles.
+* Versiones reproducibles.
+* Escaneo de vulnerabilidades.
+* SBOM.
+* Revisión de dependencias.
+* Actualizaciones controladas.
+* Secret scanning.
+* SAST.
+* Escaneo de contenedores.
+* Protección de CI/CD.
+* Firma o atestación de artefactos cuando resulte viable.
+
+No se incorporarán dependencias innecesarias.
+
+⸻
+
+31. CI/CD
+
+Los pipelines deberán aplicar mínimo privilegio.
+
+Los workflows deberán:
+
+* Limitar permisos.
+* Separar entornos.
+* Proteger secretos.
+* Evitar exposición de credenciales en logs.
+* Requerir revisión para cambios críticos.
+* Evitar despliegues no autorizados.
+* Registrar despliegues.
+* Permitir trazabilidad de artefactos.
+
+Los secretos deberán estar disponibles únicamente para los procesos que realmente los necesiten.
+
+⸻
+
+32. Seguridad del código
+
+El proceso de desarrollo deberá incorporar progresivamente:
+
+* Linting.
+* Type checking.
+* Tests unitarios.
+* Tests de integración.
+* Tests de seguridad.
+* SAST.
+* Dependency scanning.
+* Secret scanning.
+* Fuzzing cuando resulte apropiado.
+* Revisión de código.
+
+Los cambios críticos deberán disponer de revisión independiente.
+
+⸻
+
+33. Contenedores
+
+Las imágenes de contenedor deberán:
+
+* Utilizar bases mínimas.
+* Reducir superficie de ataque.
+* Evitar ejecución como root cuando sea posible.
+* Fijar versiones.
+* No contener secretos.
+* Ser escaneadas.
+* Generar SBOM cuando corresponda.
+* Utilizar imágenes confiables.
+* Ser reconstruibles de forma reproducible cuando sea viable.
+
+⸻
+
+34. Segmentación de red
+
+La infraestructura deberá dividirse en zonas de confianza diferentes.
+
+Como mínimo deberá considerarse la separación entre:
+
+* Internet.
+* Reverse proxy / WAF.
+* Aplicación.
+* Servicios internos.
+* Datos públicos.
+* Datos restringidos.
+* Administración.
+* Monitorización.
+* Backups.
+
+No deberá existir conectividad innecesaria entre segmentos.
+
+⸻
+
+35. WAF y protección perimetral
+
+Cuando CEUTIA esté expuesto públicamente se utilizarán controles perimetrales apropiados.
+
+Podrán incluir:
+
+* WAF.
+* Reverse proxy.
+* CDN.
+* Rate limiting.
+* Protección DDoS.
+* Filtrado de tráfico.
+* Detección de anomalías.
+
+Estos mecanismos son capas complementarias y no sustituyen la seguridad de la aplicación.
+
+⸻
+
+36. Rate limiting
+
+El rate limiting deberá poder aplicarse según el riesgo del recurso.
+
+Podrá basarse en:
+
+* IP.
+* Identidad.
+* API key.
+* Endpoint.
+* Recurso.
+* Sesión.
+* Tenant.
+* Comportamiento.
+
+Los límites deberán ajustarse al patrón operativo real.
+
+⸻
+
+37. Logging
+
+Los eventos relevantes de seguridad deberán registrarse de forma estructurada.
+
+Como mínimo:
+
+* Autenticaciones.
+* Fallos de autenticación.
+* Cambios de privilegios.
+* Autorizaciones denegadas.
+* Acceso a datos sensibles.
+* Cambios de configuración.
+* Operaciones administrativas.
+* Cambios de identidad.
+* Rotación de claves.
+* Incidentes.
+* Alertas.
+* Cambios en pipelines.
+* Acciones relevantes de modelos.
+
+Los logs no deberán almacenar información sensible innecesaria.
+
+⸻
+
+38. Integridad de logs
+
+Los registros críticos deberán protegerse frente a:
+
+* Modificación.
+* Eliminación.
+* Manipulación.
+* Acceso no autorizado.
+
+Cuando resulte viable deberán utilizarse:
+
+* Almacenamiento append-only.
+* Separación del sistema principal.
+* Controles de integridad.
+* Retención definida.
+* Sincronización temporal fiable.
+
+⸻
+
+39. Monitorización
+
+CEUTIA deberá monitorizar, cuando corresponda:
+
+* Autenticaciones anómalas.
+* Accesos inusuales.
+* Escalada de privilegios.
+* Exfiltración.
+* Tráfico anómalo.
+* Errores anómalos.
+* Cambios de configuración.
+* Cambios de fuentes.
+* Alteraciones de pipelines.
+* Cambios anómalos de indicadores.
+* Comportamiento anómalo de modelos.
+
+⸻
+
+40. Detección y respuesta
+
+La arquitectura podrá integrar:
+
+* IDS.
+* IPS.
+* EDR.
+* WAF telemetry.
+* Network telemetry.
+* SIEM.
+* Threat intelligence.
+* Detección basada en comportamiento.
+* MITRE ATT&CK.
+
+La detección no deberá depender exclusivamente de firmas conocidas.
+
+⸻
+
+41. Seguridad de modelos de IA
+
+Los modelos de IA serán considerados componentes potencialmente vulnerables.
+
+Se contemplarán, entre otras:
+
+* Prompt injection.
+* Indirect prompt injection.
+* Data poisoning.
+* Model poisoning.
+* Model extraction.
+* Adversarial inputs.
+* Fuga de información.
+* Insecure tool use.
+* Excessive agency.
+* Manipulación del contexto.
+* Alucinaciones.
+* Automatización indebida.
+* Automation bias.
+
+Los modelos deberán operar con el mínimo privilegio necesario.
+
+⸻
+
+42. Separación entre IA y autoridad
+
+Un modelo de IA no deberá disponer por defecto de autoridad para:
+
+* Conceder permisos.
+* Modificar políticas de seguridad.
+* Acceder a información fuera de su autorización.
+* Publicar información restringida.
+* Ejecutar operaciones irreversibles.
+* Modificar datos críticos.
+* Generar por sí solo decisiones de máxima consecuencia.
+
+Las acciones críticas deberán pasar por controles deterministas y/o autorización humana cuando corresponda.
+
+⸻
+
+43. Integridad de modelos
+
+Cada modelo relevante deberá poder asociarse, cuando corresponda, con:
+
+* Identificador.
+* Versión.
+* Configuración.
+* Fecha.
+* Datos utilizados.
+* Métricas.
+* Validación.
+* Limitaciones.
+* Responsable.
+* Entorno de ejecución.
+
+Los cambios relevantes deberán ser trazables.
+
+⸻
+
+44. Data poisoning
+
+La contaminación deliberada de datos será considerada amenaza de seguridad.
+
+Deberán contemplarse mecanismos para detectar, cuando sea técnicamente posible:
+
+* Cambios abruptos de distribución.
+* Comportamientos anómalos.
+* Duplicación coordinada.
+* Alteraciones de fuentes.
+* Inconsistencias temporales.
+* Inconsistencias espaciales.
+* Cambios anómalos en metadatos.
+* Contaminación deliberada.
+
+⸻
+
+45. Seguridad de indicadores y alertas
+
+Los indicadores y alertas deberán conservar:
+
+* Procedencia.
+* Evidencia.
+* Fecha.
+* Incertidumbre.
+* Confianza.
+* Contradicciones.
+* Versión del algoritmo.
+* Parámetros relevantes.
+* Condiciones que provocaron la alerta.
+
+Una alerta deberá distinguirse conceptualmente de un hecho confirmado.
+
+La arquitectura deberá representar, cuando corresponda:
+
+OBSERVATION
+     ↓
+SIGNAL
+     ↓
+INDICATOR
+     ↓
+ASSESSMENT
+     ↓
+ALERT
+     ↓
+RECOMMENDATION
+
+⸻
+
+46. Alertas de alta criticidad
+
+Las alertas de máxima severidad deberán estar sujetas a controles reforzados.
+
+Cuando la situación lo permita:
+
+* Corroboración independiente.
+* Revisión humana.
+* Explicación.
+* Trazabilidad.
+* Registro de decisión.
+* Conservación de evidencia.
+
+Las excepciones por emergencia deberán estar definidas y auditadas.
+
+⸻
+
+47. Supervisión humana
+
+Las decisiones automatizadas con potencial de producir consecuencias graves deberán incorporar supervisión humana cuando así lo determine el análisis de riesgo.
+
+Las acciones humanas relevantes deberán quedar registradas.
+
+⸻
+
+48. Protección de datos personales
+
+Cuando CEUTIA trate datos personales deberá aplicar, según corresponda:
+
+* Minimización.
+* Limitación de finalidad.
+* Exactitud.
+* Limitación de conservación.
+* Integridad y confidencialidad.
+* Control de acceso.
+* Trazabilidad.
+* Protección desde el diseño.
+* Protección por defecto.
+
+Los datos especialmente sensibles deberán recibir controles reforzados.
+
+La base jurídica, finalidad, conservación y demás obligaciones deberán determinarse para cada tratamiento cuando resulte necesario.
+
+⸻
+
+49. Datos sanitarios
+
+Cuando CEUTIA incorpore datos sanitarios reales deberá existir una arquitectura específica de protección.
+
+Deberán evaluarse:
+
+* Base jurídica.
+* Finalidad.
+* Minimización.
+* Control de acceso.
+* Segregación.
+* Cifrado.
+* Auditoría.
+* Retención.
+* Eliminación.
+* Riesgos de reidentificación.
+* Obligaciones regulatorias aplicables.
+
+HIPAA únicamente será aplicable cuando concurran las condiciones jurídicas que hagan aplicable dicha normativa.
+
+⸻
+
+50. Backups
+
+Los backups deberán:
+
+* Estar cifrados cuando corresponda.
+* Estar protegidos frente a acceso no autorizado.
+* Mantener separación de privilegios.
+* Disponer de política de retención.
+* Ser sometidos a pruebas de restauración.
+* Estar protegidos frente a ransomware cuando sea viable.
+* Mantener suficiente independencia respecto del sistema principal.
+
+Un backup que nunca ha sido restaurado satisfactoriamente no deberá considerarse plenamente validado.
+
+⸻
+
+51. Recuperación
+
+CEUTIA deberá definir:
+
+* RPO.
+* RTO.
+* Dependencias críticas.
+* Procedimientos de restauración.
+* Orden de recuperación.
+* Responsables.
+* Procedimientos de contingencia.
+
+Los objetivos deberán establecerse en función de la criticidad real de cada servicio.
+
+⸻
+
+52. Gestión de vulnerabilidades
+
+Las vulnerabilidades deberán:
+
+1. Detectarse.
+2. Clasificarse.
+3. Evaluarse.
+4. Priorizarse.
+5. Mitigarse o corregirse.
+6. Verificarse.
+7. Registrarse.
+
+La prioridad deberá considerar:
+
+* Severidad técnica.
+* Exposición.
+* Explotabilidad.
+* Activo afectado.
+* Sensibilidad.
+* Impacto potencial.
+* Existencia de mitigaciones.
+
+⸻
+
+53. Gestión de configuración
+
+Las configuraciones críticas deberán estar:
+
+* Versionadas cuando sea posible.
+* Revisadas.
+* Reproducibles cuando sea viable.
+* Documentadas.
+* Protegidas frente a modificaciones no autorizadas.
+
+No se deberán realizar cambios críticos manuales sin trazabilidad.
+
+⸻
+
+54. Gestión de incidentes
+
+El ciclo de respuesta será:
+
+PREPARATION
+      ↓
+DETECTION
+      ↓
+ANALYSIS
+      ↓
+CONTAINMENT
+      ↓
+ERADICATION
+      ↓
+RECOVERY
+      ↓
+LESSONS LEARNED
+
+Los incidentes deberán clasificarse según:
+
+* Impacto.
+* Probabilidad.
+* Alcance.
+* Criticidad.
+* Sensibilidad.
+* Afectación de datos.
+* Afectación de infraestructura.
+* Afectación de modelos.
+* Afectación epistemológica.
+
+⸻
+
+55. Contención
+
+Ante un compromiso confirmado o altamente probable podrán aplicarse:
+
+* Revocación de credenciales.
+* Aislamiento de servicios.
+* Bloqueo de identidades.
+* Rotación de secretos.
+* Rotación de claves.
+* Aislamiento de hosts.
+* Suspensión de pipelines.
+* Congelación de publicaciones.
+* Preservación de evidencias.
+
+Las medidas deberán procurar preservar la evidencia necesaria para la investigación.
+
+⸻
+
+56. Evidencia forense
+
+Cuando exista un incidente relevante deberán preservarse, cuando sea legal y técnicamente apropiado:
+
+* Logs.
+* Eventos de autenticación.
+* Artefactos.
+* Configuraciones.
+* Timestamps.
+* Identificadores.
+* Evidencia de red.
+* Estado de sistemas.
+* Versiones de software.
+* Evidencia epistemológica relacionada.
+
+La evidencia deberá conservar su integridad y procedencia.
+
+⸻
+
+57. Seguridad operacional
+
+Las operaciones administrativas deberán realizarse mediante identidades individualizadas.
+
+Las acciones privilegiadas deberán ser auditables.
+
+Los accesos administrativos deberán limitarse por:
+
+* Necesidad.
+* Función.
+* Tiempo.
+* Recurso.
+* Contexto.
+
+Cuando sea apropiado deberán utilizarse accesos temporales y justificados.
+
+⸻
+
+58. Seguridad física
+
+La seguridad física dependerá de la infraestructura donde se despliegue CEUTIA.
+
+Los requisitos físicos relevantes deberán ser evaluados respecto del proveedor de infraestructura seleccionado.
+
+No se asumirá que un proveedor ofrece un control físico concreto sin evidencia contractual o técnica.
+
+⸻
+
+59. Dependencias externas
+
+Todo proveedor externo que procese información de CEUTIA deberá evaluarse según:
+
+* Datos tratados.
+* Sensibilidad.
+* Localización.
+* Accesos.
+* Seguridad.
+* Disponibilidad.
+* Dependencias.
+* Subcontratación.
+* Retención.
+* Eliminación.
+* Capacidad de auditoría.
+
+Los proveedores críticos deberán disponer de controles contractuales apropiados.
+
+⸻
+
+60. Seguridad del repositorio
+
+El repositorio deberá incorporar progresivamente:
+
+* Protección de ramas.
+* Revisión obligatoria.
+* CODEOWNERS cuando corresponda.
+* Secret scanning.
+* Dependabot o equivalente.
+* Protección contra publicación accidental de secretos.
+* CI/CD protegido.
+* Auditoría de cambios.
+* Gestión de permisos.
+
+No deberán almacenarse secretos de producción en Git.
+
+⸻
+
+61. Desarrollo seguro
+
+Todo nuevo componente deberá considerar desde su diseño:
+
+* Amenazas.
+* Datos que tratará.
+* Nivel de sensibilidad.
+* Identidad.
+* Autorización.
+* Validación.
+* Logging.
+* Gestión de errores.
+* Dependencias.
+* Privacidad.
+* Recuperación.
+* Abuso previsto.
+
+La seguridad no deberá añadirse únicamente después de terminar la funcionalidad.
+
+⸻
+
+62. Threat modeling
+
+Los componentes críticos deberán someterse a análisis de amenazas.
+
+Podrán utilizarse metodologías como:
+
+* STRIDE.
+* MITRE ATT&CK.
+* Attack trees.
+* Abuse cases.
+* Data-flow analysis.
+* Risk assessment.
+
+El método deberá seleccionarse según el componente analizado.
+
+⸻
+
+63. Pruebas de seguridad
+
+CEUTIA deberá realizar progresivamente:
+
+* Tests de autenticación.
+* Tests de autorización.
+* Tests de aislamiento.
+* Tests de validación.
+* Tests de API.
+* SAST.
+* Dependency scanning.
+* Secret scanning.
+* Container scanning.
+* DAST cuando corresponda.
+* Fuzzing cuando corresponda.
+* Tests de recuperación.
+* Tests de integridad epistemológica.
+
+⸻
+
+64. Seguridad de la información generada
+
+La información generada por CEUTIA deberá mantener una distinción explícita entre:
+
+* Dato observado.
+* Dato procesado.
+* Evidencia.
+* Afirmación.
+* Inferencia.
+* Hipótesis.
+* Predicción.
+* Escenario.
+* Recomendación.
+
+El sistema no deberá presentar una inferencia como si fuera una observación.
+
+⸻
+
+65. Incertidumbre
+
+Los resultados relevantes deberán poder representar incertidumbre.
+
+Cuando sea apropiado deberán distinguirse:
+
+* Incertidumbre aleatoria.
+* Incertidumbre epistémica.
+* Información incompleta.
+* Conflicto de evidencia.
+* Dependencia de fuentes.
+* Sensibilidad del resultado.
+
+La ausencia de incertidumbre registrada no deberá interpretarse automáticamente como certeza.
+
+⸻
+
+66. Evolución de creencias
+
+Cuando nueva evidencia modifique una afirmación, hipótesis o evaluación:
+
+* deberá conservarse el estado anterior;
+* deberá registrarse la nueva evidencia;
+* deberá registrarse el cambio;
+* deberá conservarse la procedencia;
+* deberá poder reconstruirse la evolución.
+
+El conocimiento de CEUTIA será versionado cuando sea necesario para garantizar trazabilidad.
+
+⸻
+
+67. Seguridad de grafos y relaciones
+
+Los grafos de conocimiento deberán protegerse frente a:
+
+* Inserción maliciosa de entidades.
+* Relaciones falsas.
+* Duplicación artificial.
+* Eliminación de relaciones.
+* Manipulación de pesos.
+* Manipulación de centralidad.
+* Contaminación de comunidades.
+* Manipulación de dependencia entre fuentes.
+
+Las relaciones críticas deberán conservar su procedencia.
+
+⸻
+
+68. Seguridad de sistemas de detección
+
+Los algoritmos de detección deberán protegerse frente a:
+
+* Manipulación de entradas.
+* Data poisoning.
+* Concept drift no detectado.
+* Cambios de distribución.
+* Falsos positivos inducidos.
+* Falsos negativos inducidos.
+* Manipulación de umbrales.
+
+Los cambios relevantes de parámetros deberán ser auditables.
+
+⸻
+
+69. Seguridad de simulaciones y escenarios
+
+Los escenarios y simulaciones deberán distinguir entre:
+
+* Datos observados.
+* Parámetros asumidos.
+* Hipótesis.
+* Supuestos.
+* Resultados simulados.
+
+Un resultado de simulación no deberá presentarse como predicción determinista de un acontecimiento futuro.
+
+Los supuestos relevantes deberán conservarse.
+
+⸻
+
+70. Auditoría
+
+Las operaciones críticas deberán poder reconstruirse.
+
+Como mínimo deberá poder determinarse:
+
+WHO
+WHAT
+WHEN
+FROM WHERE
+WHICH RESOURCE
+WHICH VERSION
+WHICH DATA
+WHICH POLICY
+WHICH RESULT
+
+La auditoría deberá cubrir tanto operaciones humanas como operaciones automatizadas relevantes.
+
+⸻
+
+71. Trazabilidad de modelos y decisiones
+
+Cuando una alerta o resultado dependa de un modelo, deberá ser posible determinar:
+
+DATA
+  ↓
+FEATURES / REPRESENTATION
+  ↓
+MODEL VERSION
+  ↓
+PARAMETERS
+  ↓
+OUTPUT
+  ↓
+RULE / THRESHOLD
+  ↓
+ALERT
+
+La trazabilidad deberá permitir investigar posteriormente por qué se produjo un resultado.
+
+⸻
+
+72. Separación de funciones
+
+Cuando el nivel de riesgo lo requiera deberán separarse:
+
+* Desarrollo.
+* Administración.
+* Análisis.
+* Auditoría.
+* Operación.
+* Aprobación.
+
+Una única identidad no deberá concentrar innecesariamente todas las capacidades críticas.
+
+⸻
+
+73. Principio de mínima exposición
+
+CEUTIA deberá minimizar:
+
+* Puertos expuestos.
+* Servicios públicos.
+* Endpoints.
+* Permisos.
+* Dependencias.
+* Credenciales.
+* Datos almacenados.
+* Información incluida en tokens.
+* Información incluida en logs.
+
+Todo componente deberá exponer únicamente aquello que necesita para cumplir su función.
+
+⸻
+
+74. Principio de mínima confianza
+
+Cada componente deberá confiar únicamente en aquello que necesite.
+
+La confianza entre servicios deberá establecerse explícitamente.
+
+Cuando resulte apropiado se utilizarán:
+
+* Autenticación mutua.
+* Identidades de servicio.
+* Credenciales de corta duración.
+* TLS.
+* Políticas de autorización.
+* Segmentación.
+
+⸻
+
+75. Seguridad de terceros
+
+Las fuentes, proveedores y servicios externos deberán considerarse entidades potencialmente comprometibles.
+
+La confianza en terceros deberá depender de evidencia y no únicamente de reputación.
+
+La plataforma deberá poder degradar la confianza asignada a una fuente cuando aparezcan indicios de compromiso, manipulación o inconsistencia.
+
+⸻
+
+76. Continuidad
+
+La seguridad deberá contemplar escenarios de:
+
+* Caída de infraestructura.
+* Pérdida de base de datos.
+* Corrupción de datos.
+* Compromiso de credenciales.
+* Compromiso de proveedores.
+* Ransomware.
+* DDoS.
+* Compromiso de aplicación.
+* Compromiso de fuente.
+* Manipulación epistemológica.
+
+⸻
+
+77. Principio de no confianza implícita en IA
+
+Los resultados generados por modelos deberán considerarse outputs analíticos.
+
+No deberán elevar automáticamente su nivel de confianza únicamente por proceder de un modelo.
+
+La confianza deberá depender de:
+
+* Calidad de datos.
+* Evidencia.
+* Validación.
+* Rendimiento histórico.
+* Incertidumbre.
+* Corroboración.
+* Contexto.
+
+⸻
+
+78. Evaluación continua
+
+La seguridad de CEUTIA será un proceso continuo.
+
+Deberán revisarse periódicamente:
+
+* Amenazas.
+* Vulnerabilidades.
+* Dependencias.
+* Configuraciones.
+* Permisos.
+* Credenciales.
+* Modelos.
+* Fuentes.
+* Pipelines.
+* Alertas.
+* Incidentes.
+* Controles.
+* Supuestos.
+
+⸻
+
+79. Métricas de seguridad
+
+CEUTIA deberá establecer métricas como:
+
+* Vulnerabilidades abiertas.
+* Tiempo medio de resolución.
+* Cobertura MFA.
+* Cobertura de logging.
+* Cobertura de tests.
+* Incidentes.
+* Intentos de acceso no autorizado.
+* Secretos detectados.
+* Dependencias vulnerables.
+* Tiempo de recuperación.
+* Éxito de restauraciones.
+* Cobertura de procedencia.
+* Cobertura de auditoría.
+* Incidentes epistemológicos.
+* Alteraciones detectadas de fuentes.
+* Falsos positivos y negativos de controles críticos.
+
+⸻
+
+80. Gestión de cambios
+
+Los cambios relevantes de arquitectura, seguridad, identidad, datos o modelos deberán:
+
+* Estar versionados.
+* Ser revisados.
+* Poder revertirse cuando sea viable.
+* Tener trazabilidad.
+* Evaluarse respecto de su impacto de seguridad.
+
+Los cambios críticos deberán someterse a una evaluación específica.
+
+⸻
+
+81. Excepciones
+
+Toda excepción a esta política deberá:
+
+* Estar documentada.
+* Tener justificación.
+* Identificar el riesgo.
+* Identificar medidas compensatorias.
+* Tener responsable.
+* Tener fecha de revisión.
+* Ser revocable.
+
+Las excepciones permanentes deberán evitarse cuando exista una alternativa técnicamente razonable.
+
+⸻
+
+82. Divulgación de vulnerabilidades
+
+CEUTIA deberá disponer de un mecanismo para recibir comunicaciones responsables sobre vulnerabilidades.
+
+Las comunicaciones deberán permitir:
+
+* Descripción.
+* Evidencia.
+* Reproducción cuando sea posible.
+* Impacto.
+* Método de contacto.
+
+Las vulnerabilidades recibidas deberán gestionarse mediante un proceso formal.
+
+⸻
+
+83. Responsabilidad
+
+La seguridad no pertenece exclusivamente al componente de infraestructura.
+
+Cada componente deberá tener claramente definido:
+
+* Propietario.
+* Responsable técnico.
+* Nivel de criticidad.
+* Datos tratados.
+* Dependencias.
+* Riesgos.
+* Controles.
+* Estado de implementación.
+
+⸻
+
+84. Revisión de esta política
+
+Esta política deberá revisarse:
+
+* Cuando cambie significativamente la arquitectura.
+* Tras incidentes relevantes.
+* Ante cambios regulatorios relevantes.
+* Ante nuevas amenazas.
+* Ante cambios significativos en infraestructura.
+* Ante incorporación de nuevos tipos de datos.
+* Ante incorporación de nuevos modelos o capacidades de IA.
+
+⸻
+
+85. Regla final
+
+CEUTIA no considerará seguro un sistema simplemente porque:
+
+* utilice HTTPS;
+* tenga autenticación;
+* tenga un firewall;
+* utilice JWT;
+* tenga cifrado;
+* utilice PostgreSQL;
+* utilice un WAF;
+* utilice MFA;
+* utilice IA;
+* tenga logs;
+* tenga backups;
+* cumpla una checklist.
+
+La seguridad será evaluada como una propiedad sistémica.
+
+En CEUTIA, la seguridad debe proteger tanto el sistema que produce inteligencia como la integridad de la inteligencia producida.
+
+La arquitectura deberá asumir que:
+
+LA INFRAESTRUCTURA PUEDE SER ATACADA
+LA IDENTIDAD PUEDE SER COMPROMETIDA
+LAS FUENTES PUEDEN SER MANIPULADAS
+LOS DATOS PUEDEN SER CONTAMINADOS
+LOS MODELOS PUEDEN FALLAR
+LOS RESULTADOS PUEDEN SER INCORRECTOS
+LOS ADVERSARIOS PUEDEN ADAPTARSE
+
+Por ello:
+
+SEGURIDAD TÉCNICA
+        +
+SEGURIDAD DE DATOS
+        +
+SEGURIDAD DE IDENTIDAD
+        +
+SEGURIDAD DE INFRAESTRUCTURA
+        +
+SEGURIDAD DE MODELOS
+        +
+SEGURIDAD EPISTEMOLÓGICA
+        =
+SEGURIDAD CEUTIA
+
+Esta política constituye la base normativa para el diseño, implementación, evaluación y evolución de los controles de seguridad de CEUTIA.
