@@ -1,42 +1,128 @@
 # ============================================
 # CEUTIA — .gitignore
 # ============================================
-# Archivos y directorios a ignorar en Git
+# PROPÓSITO: Ignorar archivos sensibles, temporales y de build
+# ============================================
+# VERSIÓN: 2.0.0
+# ÚLTIMA ACTUALIZACIÓN: Septiembre 2026
 # ============================================
 
 # ============================================
-# DEPENDENCIAS
+# SECRETOS Y CONFIGURACIÓN (CRÍTICO)
 # ============================================
-node_modules/
-vendor/
-.pnp
-.pnp.js
-.yarn/cache
-.yarn/unplugged
-.yarn/build-state.yml
-.yarn/install-state.gz
 
-# ============================================
-# SECRETOS Y CONFIGURACIÓN
-# ============================================
+# Variables de entorno (NUNCA subir secretos)
 .env
 .env.local
 .env.development.local
 .env.test.local
 .env.production.local
 .env.*.local
+.envrc
+.env.backup
+
+# Configuración con secretos
 config/.env
+config/.env.*
 config/secrets/
+config/credentials/
 secrets/
 credentials/
+*.secret
+*.secrets
+
+# Certificados y claves privadas
 *.pem
 *.key
 *.crt
+*.csr
 *.p12
 *.pfx
+*.jks
+*.keystore
+*.truststore
+ssl/
+certs/
+private/
+
+# Tokens y API keys
+*.token
+*.tokens
+*.apikey
+*.api_key
+*.access_token
+*.refresh_token
 
 # ============================================
-# LOGS
+# DEPENDENCIAS
+# ============================================
+
+# Node.js
+node_modules/
+npm-debug.log*
+.npm
+.npmrc
+
+# Yarn
+.yarn/cache
+.yarn/unplugged
+.yarn/build-state.yml
+.yarn/install-state.gz
+yarn-error.log
+.yarn-integrity
+
+# PNPM
+pnpm-lock.yaml
+.pnpm-store/
+.pnpm-debug.log
+
+# Bower
+bower_components/
+
+# Composer (PHP)
+vendor/
+composer.lock
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Ruby
+*.gem
+*.rbx
+.bundle/
+vendor/bundle
+Gemfile.lock
+
+# Java
+*.class
+*.jar
+*.war
+*.ear
+target/
+out/
+build/
+
+# ============================================
+# LOGS (datos sensibles)
 # ============================================
 logs/
 *.log
@@ -45,6 +131,14 @@ yarn-debug.log*
 yarn-error.log*
 lerna-debug.log*
 .pnpm-debug.log*
+
+# Logs específicos
+audit.log
+audit.*.log
+error.log
+access.log
+debug.log
+trace.log
 
 # ============================================
 # RUNTIME DATA
@@ -57,15 +151,36 @@ lib-cov/
 coverage/
 .nyc_output/
 
+# Archivos de proceso
+*.swp
+*.swo
+*~
+.#*
+
 # ============================================
 # DIRECTORIOS DE BUILD
 # ============================================
+
+# Frontend (Next.js, React, Vue, etc.)
 dist/
 build/
 .next/
 out/
 .output/
 .esbuild/
+.nuxt/
+.svelte-kit/
+
+# Backend compilado
+bin/
+obj/
+*.exe
+*.dll
+*.so
+*.dylib
+*.o
+*.a
+*.lib
 
 # ============================================
 # CACHE
@@ -74,6 +189,9 @@ out/
 .parcel-cache/
 .nx/cache/
 .turbo/
+.fusebox/
+.eslintcache
+.stylelintcache
 *.swc
 *.swc.map
 
@@ -86,46 +204,122 @@ jest-results/
 test-results/
 playwright-report/
 playwright/.cache/
+cypress/videos/
+cypress/screenshots/
+cypress/downloads/
 
 # ============================================
 # IDE Y EDITORES
 # ============================================
-.idea/
+
+# VS Code
 .vscode/
-*.swp
-*.swo
-*~
-*.sublime-project
-*.sublime-workspace
-.project
-.classpath
-.settings/
+*.code-workspace
+*.code-snippets
+.vscode-test/
+
+# IntelliJ / WebStorm / IDEA
+.idea/
 *.iml
 *.ipr
 *.iws
+*.ws
+
+# Eclipse
+.project
+.classpath
+.settings/
+*.launch
+
+# Sublime Text
+*.sublime-project
+*.sublime-workspace
+
+# Vim
+*.swp
+*.swo
+*~
+.netrwhist
+
+# Emacs
+*~
+\#*\#
+.\#*
+
+# Atom
+.atom/
+
+# Brackets
+.brackets/
 
 # ============================================
-# OS
+# SISTEMA OPERATIVO
 # ============================================
+
+# macOS
 .DS_Store
 .DS_Store?
 ._*
 .Spotlight-V100
 .Trashes
-ehthumbs.db
+.AppleDouble
+.LSOverride
+Icon
+._Icon
+.DocumentRevisions-V100
+.fseventsd
+.TemporaryItems
+.CleanupAtShutdown
+.SyncID
+.SyncHistory
+.localized
+
+# Windows
 Thumbs.db
-desktop.ini
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+.SYS/
+System Volume Information/
+$Recycle.Bin/
+*.lnk
+
+# Linux
+*~
+.fuse_hidden*
+.Trash-*
+.nfs*
 
 # ============================================
-# BASE DE DATOS LOCAL
+# BASE DE DATOS (archivos locales)
 # ============================================
 *.db
-*.sqlite
-*.sqlite3
 *.db-shm
 *.db-wal
+*.sqlite
+*.sqlite3
+*.db-journal
 data/*.db
+data/*.sqlite
 tmp/*.db
+tmp/*.sqlite
+test/*.db
+test/*.sqlite
+
+# PostgreSQL local
+*.dump
+*.sql.gz
+*.sql.bz2
+backups/*.sql
+backups/*.dump
+
+# MySQL local
+*.sql
+*.mysql
+
+# MongoDB local
+*.bson
+*.wt
 
 # ============================================
 # DOCUMENTOS TEMPORALES
@@ -136,25 +330,33 @@ temp/
 *.bak
 *.backup
 *.old
+*.orig
+*.save
+*.temp
 
 # ============================================
 # BACKUPS
 # ============================================
 backups/
+backup/
 *.bak
-*~
+*.backup
+*.old
+*.orig
 
 # ============================================
 # CERTIFICADOS SSL/TLS
 # ============================================
 ssl/
 certs/
+keys/
 *.crt
 *.csr
 *.key
 *.pem
 *.p12
 *.pfx
+*.jks
 
 # ============================================
 # ARCHIVOS DE ENTORNO ESPECÍFICOS
@@ -162,6 +364,9 @@ certs/
 *.local
 *.local.*
 .local.env
+*.development
+*.production
+*.staging
 
 # ============================================
 # DEBUG
@@ -169,12 +374,16 @@ certs/
 debug.log
 debug.txt
 trace.log
+trace.txt
+dump/
+dumps/
 
 # ============================================
 # ARCHIVOS DE VOLUMEN (Docker)
 # ============================================
 volumes/
 docker-volumes/
+data-volumes/
 
 # ============================================
 # TERRAFORM
@@ -183,6 +392,10 @@ docker-volumes/
 *.tfstate.backup
 .terraform/
 .terraform.lock.hcl
+*.tfplan
+*.tfplan.json
+crash.log
+.terraform.d/
 
 # ============================================
 # KUBERNETES SECRETS
@@ -190,17 +403,34 @@ docker-volumes/
 *-secret.yaml
 *-secrets.yaml
 *secret*.yaml
+*-configmap.yaml
+kubeconfig
+.kube/
+.kubeconfig
 
 # ============================================
-# ARCHIVOS GRANDE
+# ANSIBLE
+# ============================================
+*.retry
+vault_password
+vault.yml
+vault.yaml
+
+# ============================================
+# ARCHIVOS GRANDES (no código)
 # ============================================
 *.iso
 *.img
 *.bin
 *.exe
 *.dll
-*.so
-*.dylib
+*.msi
+*.dmg
+*.pkg
+*.deb
+*.rpm
+*.apk
+*.ipa
 
 # ============================================
 # MEDIA (si no es parte del código)
@@ -209,17 +439,31 @@ media/
 uploads/
 downloads/
 storage/documents/
+storage/embeddings/
+storage/backups/
+storage/cache/
+public/uploads/
+public/downloads/
 
 # ============================================
 # MODELOS DE IA (grandes)
 # ============================================
 models/
+model/
 *.bin
 *.pt
 *.pth
 *.onnx
 *.h5
 *.pb
+*.tflite
+*.lite
+*.mlmodel
+*.mlpackage
+*.coreml
+*.nn
+*.weights
+*.weight
 
 # ============================================
 # VECTORES / EMBEDDINGS (grandes)
@@ -228,13 +472,36 @@ embeddings/
 vectors/
 *.vec
 *.npy
+*.npz
+*.pickle
+*.pkl
+*.joblib
 
 # ============================================
 # DATOS DE TEST (sensibles)
 # ============================================
 test-data/
+test_data/
 fixtures/*.json
+fixtures/*.yaml
+fixtures/*.yml
 !fixtures/example.json
+!fixtures/example.yaml
+!fixtures/example.yml
+
+# ============================================
+# DATOS DE USUARIOS (GDPR/HIPAA)
+# ============================================
+user-data/
+userdata/
+users/
+patients/
+medical-data/
+medical_data/
+clinical-data/
+clinical_data/
+phi/
+pii/
 
 # ============================================
 # ARCHIVOS DE COMPILE (varios lenguajes)
@@ -248,29 +515,125 @@ __pycache__/
 *.a
 *.so
 *.dylib
+*.lib
+*.exp
+*.ilk
+*.pdb
 
 # ============================================
-# NPM / YARN / PNPM
+# NPM / YARN / PNPM LOCKS (opcional)
 # ============================================
-package-lock.json
-yarn.lock
-pnpm-lock.yaml
-!node_modules/
+# Descomentar si NO quieres subir locks
+# package-lock.json
+# yarn.lock
+# pnpm-lock.yaml
 
 # ============================================
-# MONOREPO (si usas)
+# MONOREPO
 # ============================================
 .turbo/
 .vercel/
+.vercel.json
+now.json
+
+# ============================================
+# CLOUD PROVIDERS
+# ============================================
+
+# AWS
+.aws/
+.aws/credentials
+.aws/config
+*.aws
+
+# Google Cloud
+.gcloud/
+application_default_credentials.json
+*.gcloud
+
+# Azure
+.azure/
+.azure/credentials
+*.azure
+
+# ============================================
+# CI/CD
+# ============================================
+.github/workflows/local.yml
+.github/workflows/debug.yml
+.gitlab-ci-local.yml
+.travis.yml
+.circleci/config.local.yml
 
 # ============================================
 # OTROS
 # ============================================
 *.tgz
 *.tar.gz
+*.tar.bz2
+*.tar.xz
 *.zip
 *.rar
+*.7z
+
+# ============================================
+# ESPECÍFICOS DE CEUTIA
+# ============================================
+
+# Logs de auditoría (sensibles)
+logs/audit*
+audit-*.log
+
+# Backups de base de datos
+database/backups/
+database/dumps/
+*.sql.backup
+
+# Embeddings generados
+embeddings/
+vectors/
+
+# Documentos procesados
+storage/processed/
+storage/temp/
+
+# Datos médicos encriptados
+medical/encrypted/
+medical/phi/
+
+# Keys de encriptación
+keys/
+encryption-keys/
+*.key
+*.enc
+
+# ============================================
+# PATRONES ADICIONALES DE SEGURIDAD
+# ============================================
+*password*
+*secret*
+*credential*
+*private*
+*token*
+*apikey*
+*access_key*
+*secret_key*
+
+# ============================================
+# EXCEPCIONES (archivos que SÍ queremos)
+# ============================================
+
+# Mantener algunos ejemplos
+!.env.example
+!config/.env.example
+!fixtures/example.json
+!fixtures/example.yaml
+!secrets/README.md
+!credentials/README.md
 
 # ============================================
 # FIN DE .GITIGNORE
+# ============================================
+# Si llegaste hasta aquí, ¡bien hecho!
+# Este .gitignore protege tu repositorio.
 # ============================================
