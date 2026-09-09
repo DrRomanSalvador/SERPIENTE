@@ -3,10 +3,781 @@
 # ============================================
 # PROPÓSITO: Ignorar archivos sensibles, temporales y de build
 # ============================================
-# VERSIÓN: 2.0.0
-# ÚLTIMA ACTUALIZACIÓN: Septiembre 2026
+# VERSIÓN: 1.0.0
+# ÚLTIMA ACTUALIZACIÓN: 6:67 - 9 Septiembre 2026
 # ============================================
+# ============================================================
+# CEUTIA — Git Ignore Policy
+# ============================================================
+#
+# Never commit:
+# - secrets
+# - credentials
+# - private keys
+# - local environments
+# - runtime state
+# - databases
+# - generated artifacts
+# - caches
+# - personal data
+# - medical data
+# - intelligence data
+# - local infrastructure state
+#
+# ============================================================
 
+
+# ------------------------------------------------------------
+# ENVIRONMENT / SECRETS
+# ------------------------------------------------------------
+
+.env
+.env.*
+!.env.example
+!.env.template
+
+*.secret
+*.secrets
+secrets/
+secret/
+.secrets/
+
+*.pem
+*.key
+*.p12
+*.pfx
+*.jks
+*.keystore
+*.crt
+*.cer
+
+id_rsa
+id_rsa.pub
+id_ed25519
+id_ed25519.pub
+
+*.age
+*.gpg
+*.asc
+
+credentials.json
+credentials.yml
+credentials.yaml
+credentials.toml
+
+service-account*.json
+*-service-account.json
+
+token.json
+tokens.json
+
+
+# ------------------------------------------------------------
+# PYTHON
+# ------------------------------------------------------------
+
+__pycache__/
+*.py[cod]
+*$py.class
+
+*.so
+
+.python-version
+
+.venv/
+venv/
+env/
+ENV/
+
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.pyre/
+.pytype/
+.hypothesis/
+
+.coverage
+.coverage.*
+htmlcov/
+coverage.xml
+coverage.json
+
+.tox/
+.nox/
+
+*.egg-info/
+dist/
+build/
+wheels/
+
+pip-wheel-metadata/
+
+
+# ------------------------------------------------------------
+# JUPYTER / NOTEBOOKS
+# ------------------------------------------------------------
+
+.ipynb_checkpoints/
+
+*.ipynb_checkpoints
+
+
+# ------------------------------------------------------------
+# IDE / EDITORS
+# ------------------------------------------------------------
+
+.idea/
+.vscode/
+*.code-workspace
+
+*.swp
+*.swo
+*~
+
+.DS_Store
+Thumbs.db
+
+
+# ------------------------------------------------------------
+# OPERATING SYSTEM
+# ------------------------------------------------------------
+
+.Trashes/
+.Spotlight-V100/
+.fseventsd/
+.DocumentRevisions-V100/
+
+
+# ------------------------------------------------------------
+# LOCAL DATABASES
+# ------------------------------------------------------------
+
+*.db
+*.sqlite
+*.sqlite3
+*.db-journal
+*.sqlite-journal
+
+data/local/
+data/runtime/
+database/local/
+
+
+# ------------------------------------------------------------
+# POSTGRESQL / DATABASE DUMPS
+# ------------------------------------------------------------
+
+*.sql.gz
+*.dump
+*.backup
+*.bak
+
+*.pgdump
+
+database/dumps/
+db/dumps/
+backups/
+backup/
+
+
+# ------------------------------------------------------------
+# APPLICATION RUNTIME
+# ------------------------------------------------------------
+
+logs/
+log/
+
+*.log
+*.log.*
+*.pid
+*.pid.lock
+
+tmp/
+temp/
+runtime/
+run/
+
+*.sock
+
+
+# ------------------------------------------------------------
+# CACHE
+# ------------------------------------------------------------
+
+.cache/
+.cache/**
+cache/
+cache/**
+
+.npm/
+.yarn/
+.pnpm-store/
+
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+
+# ------------------------------------------------------------
+# GENERATED DATA
+# ------------------------------------------------------------
+
+generated/
+generated-data/
+
+artifacts/
+artifact/
+
+exports/
+export/
+
+processed/
+processing/
+
+intermediate/
+staging/
+
+warehouse/local/
+
+
+# ------------------------------------------------------------
+# LARGE / RAW DATA
+# ------------------------------------------------------------
+
+data/raw/
+data/external/
+data/import/
+data/uploads/
+
+*.csv
+*.tsv
+*.parquet
+*.feather
+*.arrow
+
+*.jsonl
+*.ndjson
+
+*.avro
+*.orc
+
+*.zip
+*.tar
+*.tar.gz
+*.7z
+*.rar
+
+# Explicitly allow small, version-controlled fixture datasets
+!tests/fixtures/**
+!tests/data/**
+
+
+# ------------------------------------------------------------
+# DOCUMENTS / USER CONTENT
+# ------------------------------------------------------------
+
+uploads/
+user_uploads/
+private_uploads/
+
+documents/private/
+documents/restricted/
+
+*.pdf
+*.doc
+*.docx
+*.xls
+*.xlsx
+*.ppt
+*.pptx
+
+# Explicitly allow version-controlled documentation
+!docs/**/*.md
+!docs/**/*.yaml
+!docs/**/*.yml
+!docs/**/*.json
+
+
+# ------------------------------------------------------------
+# MEDICAL / PERSONAL DATA
+# ------------------------------------------------------------
+
+medical/
+medical_data/
+patient_data/
+patients/
+phi/
+health_data/
+personal_data/
+pii/
+sensitive_data/
+
+*.dicom
+*.dcm
+
+# Never commit identifiable medical datasets.
+# Synthetic fixtures must be explicitly stored under tests/fixtures/.
+
+
+# ------------------------------------------------------------
+# INTELLIGENCE / RESTRICTED DATA
+# ------------------------------------------------------------
+
+restricted/
+confidential/
+highly_restricted/
+
+intelligence/
+intelligence_data/
+
+owner_data/
+owner/
+private_data/
+
+sources/private/
+sources/restricted/
+
+evidence/private/
+evidence/restricted/
+
+claims/private/
+claims/restricted/
+
+hypotheses/private/
+hypotheses/restricted/
+
+
+# ------------------------------------------------------------
+# MODEL ARTIFACTS
+# ------------------------------------------------------------
+
+models/
+model_artifacts/
+checkpoints/
+
+*.pt
+*.pth
+*.bin
+*.safetensors
+*.onnx
+*.ckpt
+*.h5
+*.keras
+*.joblib
+*.pkl
+*.pickle
+
+# Explicitly allow small test fixtures if required
+!tests/fixtures/models/**
+
+
+# ------------------------------------------------------------
+# MACHINE LEARNING / EXPERIMENT TRACKING
+# ------------------------------------------------------------
+
+mlruns/
+wandb/
+runs/
+tensorboard/
+lightning_logs/
+
+*.tfevents.*
+
+
+# ------------------------------------------------------------
+# VECTOR DATABASES / EMBEDDINGS
+# ------------------------------------------------------------
+
+vector_store/
+vectorstore/
+vectors/
+embeddings/
+embedding_cache/
+
+chroma/
+chroma_db/
+
+.faiss/
+*.faiss
+*.index
+
+
+# ------------------------------------------------------------
+# GRAPH DATABASES / LOCAL GRAPH STATE
+# ------------------------------------------------------------
+
+graph_data/
+graphdb/
+.neo4j/
+neo4j_data/
+
+*.graphml
+*.gexf
+
+
+# ------------------------------------------------------------
+# MESSAGE QUEUES / STREAMING LOCAL STATE
+# ------------------------------------------------------------
+
+kafka-data/
+zookeeper-data/
+redpanda-data/
+
+flink-data/
+spark-data/
+
+redis-data/
+rabbitmq-data/
+
+
+# ------------------------------------------------------------
+# DOCKER / CONTAINER LOCAL STATE
+# ------------------------------------------------------------
+
+docker-data/
+docker-volumes/
+.docker/
+
+*.tar
+
+
+# ------------------------------------------------------------
+# INFRASTRUCTURE STATE
+# ------------------------------------------------------------
+
+.terraform/
+.terraform.lock.hcl
+
+*.tfstate
+*.tfstate.*
+terraform.tfstate
+terraform.tfstate.*
+
+.terragrunt-cache/
+
+.ansible/
+ansible/.vault_password
+
+pulumi/
+.pulumi/
+
+# Local Kubernetes state
+.kube/
+kubeconfig
+kubeconfig.*
+
+# Helm local state
+.helm/
+
+
+# ------------------------------------------------------------
+# CLOUD PROVIDER CREDENTIALS
+# ------------------------------------------------------------
+
+.aws/
+.azure/
+.gcloud/
+.google/
+.kube/
+
+aws_credentials
+aws_config
+
+application_default_credentials.json
+
+
+# ------------------------------------------------------------
+# CERTIFICATES / TLS
+# ------------------------------------------------------------
+
+certs/
+certificates/
+private_keys/
+keys/
+
+# Development certificates may be generated locally.
+# Production certificates and keys must never enter Git.
+
+
+# ------------------------------------------------------------
+# SECURITY TOOLING OUTPUT
+# ------------------------------------------------------------
+
+.bandit/
+bandit-report.json
+bandit-report.txt
+
+pip-audit.json
+pip-audit.txt
+
+safety-report.json
+
+semgrep-report.json
+semgrep-report.sarif
+
+trivy-report.json
+trivy-report.sarif
+
+grype-report.json
+
+*.sarif
+
+
+# ------------------------------------------------------------
+# SBOM GENERATED OUTPUT
+# ------------------------------------------------------------
+
+sbom/
+*.spdx
+*.spdx.json
+*.cdx
+*.cdx.json
+
+
+# ------------------------------------------------------------
+# TEST OUTPUT
+# ------------------------------------------------------------
+
+test-results/
+test-results/**
+reports/
+test-reports/
+
+*.xml
+
+
+# ------------------------------------------------------------
+# API / HTTP CLIENT LOCAL STATE
+# ------------------------------------------------------------
+
+.http/
+.http-client/
+postman/local/
+
+
+# ------------------------------------------------------------
+# FRONTEND
+# ------------------------------------------------------------
+
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+.next/
+.nuxt/
+.svelte-kit/
+dist/
+coverage/
+
+.vite/
+
+
+# ------------------------------------------------------------
+# FRONTEND ENVIRONMENT FILES
+# ------------------------------------------------------------
+
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+
+
+# ------------------------------------------------------------
+# LOCAL CONFIGURATION
+# ------------------------------------------------------------
+
+config.local.*
+config.local/
+local.config.*
+local_config/
+
+settings.local.*
+settings.local/
+
+*.local.yaml
+*.local.yml
+*.local.json
+*.local.toml
+
+
+# ------------------------------------------------------------
+# DEVELOPMENT OVERRIDES
+# ------------------------------------------------------------
+
+docker-compose.override.yml
+docker-compose.local.yml
+
+compose.override.yml
+compose.local.yml
+
+
+# ------------------------------------------------------------
+# GENERATED DOCUMENTATION
+# ------------------------------------------------------------
+
+site/
+public/generated/
+docs/generated/
+
+
+# ------------------------------------------------------------
+# TEMPORARY ARCHIVES
+# ------------------------------------------------------------
+
+*.tmp
+*.temp
+*.old
+*.orig
+*.rej
+
+
+# ------------------------------------------------------------
+# OS / BACKUP FILES
+# ------------------------------------------------------------
+
+*.bak
+*.backup
+*.swp
+*.swo
+
+.#*
+#*#
+.~lock.*
+
+
+# ------------------------------------------------------------
+# LOCAL AI / LLM STATE
+# ------------------------------------------------------------
+
+.llm/
+llm_cache/
+prompt_cache/
+model_cache/
+
+huggingface/
+.transformers_cache/
+
+# ------------------------------------------------------------
+# LOCAL SEARCH / INDEX STATE
+# ------------------------------------------------------------
+
+.search/
+.index/
+indexes/
+index_data/
+
+
+# ------------------------------------------------------------
+# LOCAL OBSERVABILITY
+# ------------------------------------------------------------
+
+.prometheus/
+grafana-data/
+loki-data/
+tempo-data/
+
+*.wal
+
+
+# ------------------------------------------------------------
+# LOCAL MESSAGE / EVENT DATA
+# ------------------------------------------------------------
+
+events/local/
+event_store/local/
+streams/local/
+
+
+# ------------------------------------------------------------
+# LOCAL OBJECT STORAGE
+# ------------------------------------------------------------
+
+minio-data/
+s3-data/
+object-storage/
+
+
+# ------------------------------------------------------------
+# LOCAL SECRETS CREATED BY DEVELOPMENT TOOLS
+# ------------------------------------------------------------
+
+.vault-token
+.vault-token.*
+.secret
+.secret.*
+.local-secrets/
+
+
+# ------------------------------------------------------------
+# PRIVATE CERTIFICATE AUTHORITIES
+# ------------------------------------------------------------
+
+ca/
+ca-data/
+private-ca/
+
+
+# ------------------------------------------------------------
+# CRASH DUMPS
+# ------------------------------------------------------------
+
+core
+core.*
+*.core
+*.dmp
+
+
+# ------------------------------------------------------------
+# MAC / WINDOWS / LINUX LOCAL FILES
+# ------------------------------------------------------------
+
+.DS_Store
+.DS_Store?
+._*
+
+ehthumbs.db
+Icon?
+Desktop.ini
+
+
+# ------------------------------------------------------------
+# CEUTIA-SPECIFIC LOCAL STATE
+# ------------------------------------------------------------
+
+.ceutia/
+.ceutia-local/
+.ceutia-runtime/
+
+ceutia.local/
+ceutia-runtime/
+ceutia-state/
+
+local_state/
+local_state/**
+
+
+# ------------------------------------------------------------
+# IMPORTANT
+# ------------------------------------------------------------
+#
+# This file is not a substitute for secret scanning.
+#
+# A secret accidentally committed to Git must be considered
+# compromised even if it is subsequently removed from the
+# working tree.
+#
+# Production secrets must be revoked and rotated immediately.
+#
+# Sensitive information must never be committed merely because
+# it matches an ignored pattern incorrectly or because the
+# repository is private.
+#
+# .gitignore protects the working tree.
+# It does not provide confidentiality.
+#
+# ============================================================
 # ============================================
 # SECRETOS Y CONFIGURACIÓN (CRÍTICO)
 # ============================================
