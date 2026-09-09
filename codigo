@@ -1,3 +1,4 @@
+
 # CEUTIA — Documentación Interna
 
 > **Propósito:** Construir una infraestructura de inteligencia territorial que ayude a la humanidad a comprender fenómenos complejos, empezando por Ceuta.
@@ -43,4 +44,69 @@ CEUTIA no es una web ni un chatbot. Es un **sistema vivo de conocimiento** que:
 ---
 
 ## Estructura del Repositorio
+
+```
+ceutia-internal/
+├── apps/           # Frontends (público y Owner)
+├── services/       # Backend (APIs, motor epistemológico, IA)
+├── packages/       # Librerías compartidas
+├── database/       # Base de datos y migraciones
+├── infrastructure/ # Cloud, CI/CD, despliegue
+├── docs/           # Documentación técnica
+├── tests/          # Tests automatizados
+└── config/         # Configuraciones por entorno
+```
+
+---
+
+## Principios
+
+1. **Evidencia antes que narrativa**
+2. **Procedencia antes que autoridad**
+3. **Independencia antes que número de fuentes**
+4. **Contradicción antes que confirmación**
+5. **Incertidumbre antes que falsa precisión**
+6. **Evolución antes que verdad estática**
+
+---
+
+## Estado del Proyecto
+
+- [ ] Repositorio creado
+- [ ] Documentación inicial
+- [ ] Esquema de base de datos
+- [ ] APIs definidas
+- [ ] Autenticación implementada
+- [ ] Ingestión funcional
+- [ ] RAG básico
+- [ ] Frontend público
+- [ ] Frontend Owner
+- [ ] Despliegue en cloud
+
+---
+
+## Licencia
+
+Propietario. Todos los derechos reservados.
+
+---
+
+*Este sistema está diseñado para ayudar a la humanidad a comprender mejor su entorno y reducir errores de percepción.*
+```
+
+***
+
+## Instrucciones
+
+1. En el cuadro **"Name your file..."**, escribe:
+   ```
+   docs/architecture/README.md
+   ```
+
+2. En el cuadro grande de abajo, **pega todo el contenido** de arriba.
+
+3. Abajo, en "Commit new file", haz clic en el botón verde **"Commit new file"**.
+
+***
+
 
