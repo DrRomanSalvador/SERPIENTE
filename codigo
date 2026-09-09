@@ -1,0 +1,46 @@
+# CEUTIA — Documentación Interna
+
+> **Propósito:** Construir una infraestructura de inteligencia territorial que ayude a la humanidad a comprender fenómenos complejos, empezando por Ceuta.
+
+---
+
+## Visión
+
+CEUTIA no es una web ni un chatbot. Es un **sistema vivo de conocimiento** que:
+
+- Recopila información de fuentes autorizadas
+- Conserva procedencia y evidencia
+- Diferencia hechos, inferencias e hipótesis
+- Detecta corroboraciones y contradicciones
+- Mantiene hipótesis competidoras
+- Ofrece dos capas separadas: pública y privada
+
+---
+
+## Arquitectura
+
+### Capa Pública (lo que ve el ciudadano)
+
+- Respuestas verificables
+- Fuentes y fechas
+- Evidencias y contradicciones
+- Incertidumbre
+- Herramientas de reflexión
+- Módulo emocional voluntario
+- Información de salud
+
+### Capa Privada (lo que ve el Owner)
+
+- Evidencia primaria
+- Hipótesis competidoras
+- Señales débiles y anomalías
+- Baselines y convergencias
+- Evaluaciones privadas
+- Riesgos multidimensionales
+- Alertas y escenarios
+- Configuración y auditoría
+
+---
+
+## Estructura del Repositorio
+
