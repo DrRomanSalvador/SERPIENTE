@@ -1,0 +1,605 @@
+-- ============================================
+-- CEUTIA — Complete Database Schema
+-- Migration 001
+-- Propósito: Infraestructura completa para inteligencia territorial
+-- ============================================
+
+-- ============================================
+-- EXTENSIONES
+-- ============================================
+
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+
+-- ============================================
+-- TABLAS PRINCIPALES - NÚCLEO EPISTEMOLÓGICO
+-- ============================================
+
+-- Fuentes de información autorizadas
+CREATE TABLE sources (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    name VARCHAR(255) NOT NULL,
+    type VARCHAR(50) NOT NULL, -- institutional, media, official, academic, other
+    origin VARCHAR(255), -- país/organización
+    authorization_status VARCHAR(50) DEFAULT 'pending', -- authorized, pending, revoked
+    reliability_assessment JSONB,
+    independence_group VARCHAR(255), -- para detectar dependencias entre fuentes
+    domain_allowlist TEXT[], -- dominios permitidos
+    denylist TEXT[], -- dominios bloqueados
+    monitoring_frequency INTEGER DEFAULT 3600, -- segundos entre comprobaciones
+    last_checked_at TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Documentos obtenidos de las fuentes
+CREATE TABLE documents (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    source_id UUID REFERENCES sources(id) ON DELETE CASCADE,
+    title VARCHAR(500) NOT NULL,
+    publication_date TIMESTAMP,
+    retrieval_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    content_location VARCHAR(500), -- path en object storage
+    checksum VARCHAR(64), -- hash del contenido
+    content_hash VARCHAR(64), -- hash del contenido procesado
+    version INTEGER DEFAULT 1,
+    status VARCHAR(50) DEFAULT 'active', -- active, archived, superseded
+    language VARCHAR(10),
+    document_type VARCHAR(50), -- news, report, official, statement, etc.
+    topics TEXT[],
+    sensitivity_level VARCHAR(50) DEFAULT 'public', -- public, private, restricted
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Observaciones extraídas de documentos
+CREATE TABLE observations (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    document_id UUID REFERENCES documents(id) ON DELETE CASCADE,
+    extracted_content TEXT NOT NULL,
+    temporal_reference VARCHAR(255), -- fecha/hora del evento observado
+    extraction_method VARCHAR(50), -- manual, automated, hybrid
+    confidence_score FLOAT CHECK (confidence_score BETWEEN 0 AND 1),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Evidencias que soportan afirmaciones
+CREATE TABLE evidence (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    observation_id UUID REFERENCES observations(id) ON DELETE CASCADE,
+    evidence_type VARCHAR(50) NOT NULL, -- direct, indirect, testimonial, documentary, quantitative
+    directness INTEGER CHECK (directness BETWEEN 1 AND 5),
+    relevance INTEGER CHECK (relevance BETWEEN 1 AND 5),
+    quality INTEGER CHECK (quality BETWEEN 1 AND 5),
+    independence_score FLOAT CHECK (independence_score BETWEEN 0 AND 1),
+    corroboration_count INTEGER DEFAULT 0,
+    contradiction_count INTEGER DEFAULT 0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Afirmaciones epistemológicas (el núcleo del sistema)
+CREATE TABLE claims (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    text TEXT NOT NULL,
+    claim_type VARCHAR(50) NOT NULL, -- FACT, QUANTITATIVE_DATA, SOURCE_ASSERTION, etc.
+    temporal_scope VARCHAR(255),
+    geographic_scope TEXT[],
+    status VARCHAR(50) DEFAULT 'observed', -- observed, provisional, corroborated, confirmed, contested, revised, refuted, expired, superseded
+    first_observed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    last_updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    current_version INTEGER DEFAULT 1,
+    domain VARCHAR(50), -- epistemic, disinformation, manipulation, polarization, violence, environmental, border, integrated
+    risk_level VARCHAR(50) DEFAULT 'unknown', -- low, medium, high, critical
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Historial de cambios en afirmaciones (trazabilidad completa)
+CREATE TABLE claim_versions (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    claim_id UUID REFERENCES claims(id) ON DELETE CASCADE,
+    version INTEGER NOT NULL,
+    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    old_status VARCHAR(50),
+    new_status VARCHAR(50),
+    evidence_trigger UUID REFERENCES evidence(id),
+    change_reason TEXT,
+    actor VARCHAR(255), -- system o user_id
+    algorithm_version VARCHAR(50),
+    snapshot_data JSONB -- estado completo en ese momento
+);
+
+-- Relaciones entre evidencias y afirmaciones
+CREATE TABLE claim_evidence (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    claim_id UUID REFERENCES claims(id) ON DELETE CASCADE,
+    evidence_id UUID REFERENCES evidence(id) ON DELETE CASCADE,
+    relationship_type VARCHAR(50) NOT NULL, -- supports, contradicts, corroborates, weakens, neutral
+    strength INTEGER CHECK (strength BETWEEN 1 AND 5),
+    rationale TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(claim_id, evidence_id)
+);
+
+-- Fenómenos que se monitorizan
+CREATE TABLE phenomena (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    name VARCHAR(255) NOT NULL,
+    description TEXT,
+    domain VARCHAR(50) NOT NULL,
+    baseline_json JSONB, -- comportamiento histórico esperado
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Hipótesis competidoras sobre fenómenos
+CREATE TABLE hypotheses (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    phenomenon_id UUID REFERENCES phenomena(id) ON DELETE CASCADE,
+    statement TEXT NOT NULL,
+    prior_evaluation JSONB,
+    current_evaluation JSONB,
+    probability FLOAT CHECK (probability BETWEEN 0 AND 1),
+    confidence FLOAT CHECK (confidence BETWEEN 0 AND 1),
+    uncertainty FLOAT CHECK (uncertainty BETWEEN 0 AND 1),
+    status VARCHAR(50) DEFAULT 'active', -- active, weakened, strengthened, falsified, superseded
+    evaluation_date TIMESTAMP,
+    version INTEGER DEFAULT 1,
+    falsifiers TEXT[], -- observaciones que podrían falsar esta hipótesis
+    expected_observations TEXT[], -- qué esperaríamos ver si es cierta
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Relación entre hipótesis y evidencias
+CREATE TABLE hypothesis_evidence (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    hypothesis_id UUID REFERENCES hypotheses(id) ON DELETE CASCADE,
+    evidence_id UUID REFERENCES evidence(id) ON DELETE CASCADE,
+    polarity VARCHAR(50) NOT NULL, -- SUPPORTING, OPPOSING, NEUTRAL, FALSIFYING
+    strength INTEGER CHECK (strength BETWEEN 1 AND 5),
+    rationale TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE(hypothesis_id, evidence_id)
+);
+
+-- Observaciones esperadas para cada hipótesis
+CREATE TABLE expected_observations (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    hypothesis_id UUID REFERENCES hypotheses(id) ON DELETE CASCADE,
+    expected_observation TEXT NOT NULL,
+    timeframe VARCHAR(255),
+    indicator VARCHAR(255),
+    falsification_relevance INTEGER CHECK (falsification_relevance BETWEEN 1 AND 5),
+    observed BOOLEAN DEFAULT FALSE,
+    observation_date TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Evaluaciones del sistema
+CREATE TABLE evaluations (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    evaluated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    evaluator VARCHAR(255), -- system_version o user_id
+    system_version VARCHAR(50),
+    model_version VARCHAR(50),
+    prompt_version VARCHAR(50),
+    retrieval_version VARCHAR(50),
+    confidence FLOAT CHECK (confidence BETWEEN 0 AND 1),
+    uncertainty FLOAT CHECK (uncertainty BETWEEN 0 AND 1),
+    probability FLOAT CHECK (probability BETWEEN 0 AND 1),
+    impact_score INTEGER CHECK (impact_score BETWEEN 1 AND 5),
+    risk_score INTEGER CHECK (risk_score BETWEEN 1 AND 5),
+    rationale TEXT,
+    evidence_snapshot JSONB,
+    alternative_hypotheses JSONB,
+    domain VARCHAR(50)
+);
+
+-- ============================================
+-- DOMINIOS DE ANÁLISIS
+-- ============================================
+
+-- Dominios de riesgo
+CREATE TABLE risk_domains (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    name VARCHAR(50) UNIQUE NOT NULL, -- disinformation, manipulation, polarization, violence, environmental, border, integrated
+    description TEXT,
+    weight FLOAT DEFAULT 1.0,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Evaluaciones de riesgo por dominio
+CREATE TABLE domain_risk_evaluations (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    domain_id UUID REFERENCES risk_domains(id) ON DELETE CASCADE,
+    evaluation_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    level VARCHAR(50), -- green, yellow, orange, red, critical
+    score FLOAT,
+    confidence FLOAT CHECK (confidence BETWEEN 0 AND 1),
+    uncertainty FLOAT CHECK (uncertainty BETWEEN 0 AND 1),
+    trend VARCHAR(50), -- increasing, stable, decreasing
+    velocity FLOAT,
+    baseline_deviation FLOAT,
+    convergence_score FLOAT,
+    indicators JSONB,
+    rationale TEXT,
+    system_version VARCHAR(50)
+);
+
+-- Señales e indicadores
+CREATE TABLE signals (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    domain_id UUID REFERENCES risk_domains(id) ON DELETE CASCADE,
+    name VARCHAR(255) NOT NULL,
+    type VARCHAR(50), -- quantitative, qualitative, binary
+    magnitude FLOAT,
+    deviation FLOAT,
+    velocity FLOAT,
+    acceleration FLOAT,
+    persistence INTEGER, -- días consecutivos
+    novelty_score FLOAT,
+    independence_score FLOAT,
+    reliability_score FLOAT,
+    cross_domain_convergence FLOAT,
+    contradiction_count INTEGER DEFAULT 0,
+    uncertainty_score FLOAT,
+    baseline_value FLOAT,
+    current_value FLOAT,
+    first_detected_at TIMESTAMP,
+    last_updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    status VARCHAR(50) DEFAULT 'active'
+);
+
+-- Anomalías detectadas
+CREATE TABLE anomalies (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    signal_id UUID REFERENCES signals(id) ON DELETE CASCADE,
+    detection_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    anomaly_type VARCHAR(50), -- spike, drop, pattern_change, correlation_break
+    severity VARCHAR(50), -- low, medium, high, critical
+    deviation_from_baseline FLOAT,
+    statistical_significance FLOAT,
+    related_signals UUID[],
+    rationale TEXT,
+    status VARCHAR(50) DEFAULT 'open' -- open, investigating, resolved, false_positive
+);
+
+-- Convergencias entre señales
+CREATE TABLE signal_convergences (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    convergence_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    signal_ids UUID[] NOT NULL,
+    convergence_score FLOAT,
+    domain_ids UUID[],
+    pattern_type VARCHAR(50),
+    strength VARCHAR(50), -- weak, moderate, strong
+    rationale TEXT,
+    status VARCHAR(50) DEFAULT 'active'
+);
+
+-- ============================================
+-- ALERTAS Y ESCENARIOS
+-- ============================================
+
+-- Alertas del sistema
+CREATE TABLE alerts (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    alert_type VARCHAR(50) NOT NULL, -- informational, warning, critical
+    domain_id UUID REFERENCES risk_domains(id),
+    level VARCHAR(50), -- green, yellow, orange, red, critical
+    title VARCHAR(500) NOT NULL,
+    description TEXT,
+    what_changed TEXT,
+    since_when TIMESTAMP,
+    magnitude FLOAT,
+    baseline_value FLOAT,
+    current_value FLOAT,
+    evidence_summary JSONB,
+    independent_sources_count INTEGER,
+    contrary_evidence JSONB,
+    compatible_hypotheses UUID[],
+    weakened_hypotheses UUID[],
+    confidence FLOAT CHECK (confidence BETWEEN 0 AND 1),
+    uncertainty FLOAT CHECK (uncertainty BETWEEN 0 AND 1),
+    activation_reason TEXT,
+    possible_falsifiers TEXT[],
+    monitoring_recommendations TEXT[],
+    acknowledged_by UUID,
+    acknowledged_at TIMESTAMP,
+    resolved_at TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    system_version VARCHAR(50)
+);
+
+-- Escenarios futuros
+CREATE TABLE scenarios (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    name VARCHAR(255) NOT NULL,
+    description TEXT,
+    domain_id UUID REFERENCES risk_domains(id),
+    probability FLOAT CHECK (probability BETWEEN 0 AND 1),
+    impact_score INTEGER CHECK (impact_score BETWEEN 1 AND 5),
+    timeframe VARCHAR(255), -- short_term, medium_term, long_term
+    assumptions TEXT[],
+    indicators_to_watch TEXT[],
+    trigger_conditions TEXT[],
+    status VARCHAR(50) DEFAULT 'active', -- active, archived, realized, invalidated
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- ============================================
+-- INTERVENCIONES PÚBLICAS
+-- ============================================
+
+-- Tipos de intervención conversacional
+CREATE TABLE intervention_types (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    code VARCHAR(10) UNIQUE NOT NULL, -- A, B, C, D, E, F, G
+    name VARCHAR(255) NOT NULL,
+    description TEXT,
+    trigger_conditions JSONB,
+    allowed_content TEXT[],
+    forbidden_content TEXT[],
+    approval_level VARCHAR(50) DEFAULT 'automatic',
+    audience VARCHAR(50) DEFAULT 'public',
+    cooldown_seconds INTEGER DEFAULT 300,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Intervenciones realizadas
+CREATE TABLE interventions (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_session_id UUID,
+    intervention_type_id UUID REFERENCES intervention_types(id),
+    trigger_claim_id UUID REFERENCES claims(id),
+    trigger_reason TEXT,
+    content_delivered TEXT,
+    user_response TEXT,
+    effectiveness_score INTEGER CHECK (effectiveness_score BETWEEN 1 AND 5),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- ============================================
+-- MÓDULO EMOCIONAL Y DE SALUD
+-- ============================================
+
+-- Sesiones de reflexión emocional
+CREATE TABLE emotional_sessions (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_session_id UUID,
+    started_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    completed_at TIMESTAMP,
+    mood_start VARCHAR(50),
+    mood_end VARCHAR(50),
+    stress_level INTEGER CHECK (stress_level BETWEEN 1 AND 10),
+    anxiety_level INTEGER CHECK (anxiety_level BETWEEN 1 AND 10),
+    wellbeing_changes TEXT,
+    symptoms_reported TEXT[],
+    referrals_made BOOLEAN DEFAULT FALSE,
+    status VARCHAR(50) DEFAULT 'in_progress'
+);
+
+-- Consultas médicas
+CREATE TABLE medical_consultations (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_session_id UUID,
+    emotional_session_id UUID REFERENCES emotional_sessions(id),
+    consultation_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    professional_id UUID,
+    notes TEXT,
+    recommendations TEXT[],
+    follow_up_required BOOLEAN DEFAULT FALSE,
+    follow_up_date TIMESTAMP,
+    status VARCHAR(50) DEFAULT 'completed'
+);
+
+-- ============================================
+-- USUARIOS, ROLES Y PERMISOS
+-- ============================================
+
+-- Usuarios del sistema
+CREATE TABLE users (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    email VARCHAR(255) UNIQUE NOT NULL,
+    password_hash VARCHAR(255) NOT NULL,
+    role VARCHAR(50) DEFAULT 'public_user', -- public_user, owner, admin, medical
+    email_verified BOOLEAN DEFAULT FALSE,
+    last_login_at TIMESTAMP,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Sesiones de usuario
+CREATE TABLE user_sessions (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+    session_token VARCHAR(500) UNIQUE NOT NULL,
+    expires_at TIMESTAMP NOT NULL,
+    ip_address VARCHAR(45),
+    user_agent TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Roles
+CREATE TABLE roles (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    name VARCHAR(50) UNIQUE NOT NULL,
+    description TEXT,
+    permissions JSONB,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Permisos
+CREATE TABLE permissions (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    resource VARCHAR(255) NOT NULL,
+    action VARCHAR(50) NOT NULL,
+    description TEXT,
+    UNIQUE(resource, action)
+);
+
+-- Asignación de roles a usuarios
+CREATE TABLE user_roles (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+    role_id UUID REFERENCES roles(id) ON DELETE CASCADE,
+    assigned_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    assigned_by UUID,
+    UNIQUE(user_id, role_id)
+);
+
+-- ============================================
+-- AUDITORÍA Y TRAZABILIDAD
+-- ============================================
+
+-- Eventos de auditoría (inmutable)
+CREATE TABLE audit_events (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    actor VARCHAR(255), -- user_id o system
+    actor_role VARCHAR(255),
+    action VARCHAR(255) NOT NULL,
+    resource VARCHAR(255) NOT NULL,
+    resource_id UUID,
+    resource_version VARCHAR(50),
+    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    input_reference VARCHAR(500),
+    output_reference VARCHAR(500),
+    system_version VARCHAR(50),
+    model_version VARCHAR(50),
+    prompt_version VARCHAR(50),
+    ip_address VARCHAR(45),
+    user_agent TEXT,
+    metadata JSONB
+);
+
+-- Auditoría de respuestas (trazabilidad completa de cada respuesta)
+CREATE TABLE response_audits (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    question_text TEXT NOT NULL,
+    answer_text TEXT NOT NULL,
+    user_id UUID,
+    user_type VARCHAR(50), -- public, owner, medical
+    retrieved_documents UUID[],
+    sources_used UUID[],
+    claims_generated UUID[],
+    system_version VARCHAR(50),
+    model_version VARCHAR(50),
+    prompt_version VARCHAR(50),
+    retrieval_version VARCHAR(50),
+    output_policy_applied VARCHAR(50),
+    response_time_ms INTEGER,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- ============================================
+-- CONFIGURACIÓN DEL SISTEMA
+-- ============================================
+
+-- Configuración del sistema
+CREATE TABLE system_config (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    config_key VARCHAR(255) UNIQUE NOT NULL,
+    config_value JSONB NOT NULL,
+    description TEXT,
+    version INTEGER DEFAULT 1,
+    updated_by VARCHAR(255),
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- Versiones del sistema
+CREATE TABLE system_versions (
+    id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+    version VARCHAR(50) UNIQUE NOT NULL,
+    release_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    changelog TEXT,
+    is_active BOOLEAN DEFAULT FALSE,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
+-- ============================================
+-- ÍNDICES PARA RENDIMIENTO
+-- ============================================
+
+CREATE INDEX idx_documents_source ON documents(source_id);
+CREATE INDEX idx_documents_status ON documents(status);
+CREATE INDEX idx_documents_type ON documents(document_type);
+CREATE INDEX idx_observations_document ON observations(document_id);
+CREATE INDEX idx_evidence_observation ON evidence(observation_id);
+CREATE INDEX idx_evidence_type ON evidence(evidence_type);
+CREATE INDEX idx_claims_status ON claims(status);
+CREATE INDEX idx_claims_type ON claims(claim_type);
+CREATE INDEX idx_claims_domain ON claims(domain);
+CREATE INDEX idx_claims_risk_level ON claims(risk_level);
+CREATE INDEX idx_hypotheses_status ON hypotheses(status);
+CREATE INDEX idx_hypotheses_phenomenon ON hypotheses(phenomenon_id);
+CREATE INDEX idx_phenomena_domain ON phenomena(domain);
+CREATE INDEX idx_evaluations_date ON evaluations(evaluated_at);
+CREATE INDEX idx_evaluations_domain ON evaluations(domain);
+CREATE INDEX idx_alerts_level ON alerts(level);
+CREATE INDEX idx_alerts_created ON alerts(created_at);
+CREATE INDEX idx_alerts_acknowledged ON alerts(acknowledged_at);
+CREATE INDEX idx_signals_domain ON signals(domain_id);
+CREATE INDEX idx_signals_status ON signals(status);
+CREATE INDEX idx_anomalies_signal ON anomalies(signal_id);
+CREATE INDEX idx_anomalies_status ON anomalies(status);
+CREATE INDEX idx_audit_timestamp ON audit_events(timestamp);
+CREATE INDEX idx_audit_actor ON audit_events(actor);
+CREATE INDEX idx_audit_action ON audit_events(action);
+CREATE INDEX idx_audit_resource ON audit_events(resource);
+CREATE INDEX idx_users_email ON users(email);
+CREATE INDEX idx_users_role ON users(role);
+CREATE INDEX idx_sessions_user ON user_sessions(user_id);
+CREATE INDEX idx_sessions_expires ON user_sessions(expires_at);
+CREATE INDEX idx_response_audits_created ON response_audits(created_at);
+CREATE INDEX idx_config_key ON system_config(config_key);
+
+-- ============================================
+-- VISTAS ÚTILES (opcional)
+-- ============================================
+
+-- Vista: Claims con conteo de evidencias
+CREATE VIEW claims_with_evidence_count AS
+SELECT 
+    c.*,
+    COUNT(CASE WHEN ce.relationship_type = 'supports' THEN 1 END) as supporting_count,
+    COUNT(CASE WHEN ce.relationship_type = 'contradicts' THEN 1 END) as contradicting_count,
+    COUNT(CASE WHEN ce.relationship_type = 'corroborates' THEN 1 END) as corroborating_count
+FROM claims c
+LEFT JOIN claim_evidence ce ON c.id = ce.claim_id
+GROUP BY c.id;
+
+-- Vista: Hipótesis con evaluación resumida
+CREATE VIEW hypotheses_summary AS
+SELECT 
+    h.*,
+    p.name as phenomenon_name,
+    p.domain as phenomenon_domain,
+    COUNT(CASE WHEN he.polarity = 'SUPPORTING' THEN 1 END) as supporting_evidence_count,
+    COUNT(CASE WHEN he.polarity = 'OPPOSING' THEN 1 END) as opposing_evidence_count,
+    COUNT(CASE WHEN he.polarity = 'FALSIFYING' THEN 1 END) as falsifying_evidence_count
+FROM hypotheses h
+LEFT JOIN phenomena p ON h.phenomenon_id = p.id
+LEFT JOIN hypothesis_evidence he ON h.id = he.hypothesis_id
+GROUP BY h.id, p.name, p.domain;
+
+-- ============================================
+-- COMENTARIOS EN TABLAS (documentación)
+-- ============================================
+
+COMMENT ON TABLE sources IS 'Fuentes de información autorizadas y trazables';
+COMMENT ON TABLE documents IS 'Documentos obtenidos de fuentes autorizadas';
+COMMENT ON TABLE observations IS 'Observaciones extraídas directamente de documentos';
+COMMENT ON TABLE evidence IS 'Evidencias que soportan o contradicen afirmaciones';
+COMMENT ON TABLE claims IS 'Afirmaciones epistemológicas (núcleo del sistema)';
+COMMENT ON TABLE claim_versions IS 'Historial completo de cambios en afirmaciones';
+COMMENT ON TABLE hypotheses IS 'Hipótesis competidoras sobre fenómenos';
+COMMENT ON TABLE evaluations IS 'Evaluaciones del sistema con confianza e incertidumbre';
+COMMENT ON TABLE alerts IS 'Alertas generadas por el sistema';
+COMMENT ON TABLE audit_events IS 'Registro inmutable de todas las acciones';
+COMMENT ON TABLE response_audits IS 'Trazabilidad completa de cada respuesta generada';
+
+-- ============================================
+-- FIN DEL ESQUEMA
+-- ============================================
