@@ -1,0 +1,181 @@
+-- ============================================
+-- CEUTIA — Initial Data Seeds
+-- Seed 001
+-- Propósito: Datos iniciales para el sistema
+-- ============================================
+
+-- ============================================
+-- ROLES
+-- ============================================
+
+INSERT INTO roles (name, description, permissions) VALUES
+('public_user', 'Usuario público - solo acceso a capa pública', 
+ '{"read_public": true}'),
+ 
+('owner', 'Propietario - acceso completo a capa privada', 
+ '{"read_public": true, "read_private": true, "write_sources": true, "write_documents": true, "write_claims": true, "write_hypotheses": true, "write_evaluations": true, "configure_system": true, "inspect_audit": true, "manage_alerts": true}'),
+ 
+('admin', 'Administrador del sistema', 
+ '{"read_public": true, "read_private": true, "write_all": true, "configure_system": true, "manage_users": true, "inspect_audit": true}'),
+ 
+('medical', 'Profesional médico - acceso a módulo de salud', 
+ '{"read_public": true, "read_medical": true, "write_medical": true}');
+
+-- ============================================
+-- PERMISOS
+-- ============================================
+
+INSERT INTO permissions (resource, action, description) VALUES
+
+-- Capa pública
+('public_data', 'read', 'Leer datos públicos'),
+('public_claims', 'read', 'Leer afirmaciones públicas'),
+('public_sources', 'read', 'Leer fuentes públicas'),
+
+-- Capa Owner
+('owner_intelligence', 'read', 'Leer inteligencia privada'),
+('owner_intelligence', 'write', 'Escribir inteligencia privada'),
+('private_claims', 'read', 'Leer afirmaciones privadas'),
+('private_claims', 'write', 'Escribir afirmaciones privadas'),
+
+-- Fuentes
+('sources', 'read', 'Leer fuentes'),
+('sources', 'write', 'Crear/editar fuentes'),
+('sources', 'delete', 'Eliminar fuentes'),
+
+-- Documentos
+('documents', 'read', 'Leer documentos'),
+('documents', 'write', 'Crear/editar documentos'),
+('documents', 'delete', 'Eliminar documentos'),
+
+-- Evidencias
+('evidence', 'read', 'Leer evidencias'),
+('evidence', 'write', 'Crear/editar evidencias'),
+
+-- Hipótesis
+('hypotheses', 'read', 'Leer hipótesis'),
+('hypotheses', 'write', 'Crear/editar hipótesis'),
+
+-- Evaluaciones
+('evaluations', 'read', 'Leer evaluaciones'),
+('evaluations', 'write', 'Crear/editar evaluaciones'),
+
+-- Alertas
+('alerts', 'read', 'Leer alertas'),
+('alerts', 'write', 'Crear/editar alertas'),
+('alerts', 'acknowledge', 'Reconocer alertas'),
+
+-- Configuración
+('system_config', 'read', 'Leer configuración'),
+('system_config', 'write', 'Modificar configuración'),
+
+-- Auditoría
+('audit', 'read', 'Leer auditoría'),
+
+-- Usuarios
+('users', 'read', 'Leer usuarios'),
+('users', 'write', 'Crear/editar usuarios'),
+('users', 'delete', 'Eliminar usuarios'),
+
+-- Módulo médico
+('medical_data', 'read', 'Leer datos médicos'),
+('medical_data', 'write', 'Escribir datos médicos');
+
+-- ============================================
+-- USUARIO OWNER INICIAL
+-- ============================================
+
+-- NOTA: La contraseña debe hashearse antes de insertar
+-- Este es un ejemplo, cambia la contraseña en producción
+
+INSERT INTO users (email, password_hash, role, email_verified) VALUES
+('owner@ceutia.local', '$2b$10$EXAMPLE_HASH_REPLACE_THIS', 'owner', TRUE);
+
+-- ============================================
+-- CONFIGURACIÓN INICIAL DEL SISTEMA
+-- ============================================
+
+INSERT INTO system_config (config_key, config_value, description) VALUES
+
+-- Fuentes
+('sources.allowlist', '[]', 'Lista de fuentes autorizadas'),
+('sources.denylist', '[]', 'Lista de fuentes bloqueadas'),
+('sources.monitoring_enabled', 'true', 'Monitorización de fuentes activada'),
+
+-- Seguridad
+('security.jwt_secret', 'CHANGE_THIS_IN_PRODUCTION', 'Secreto para JWT'),
+('security.session_timeout', '3600', 'Timeout de sesión en segundos'),
+('security.max_login_attempts', '5', 'Intentos máximos de login'),
+
+-- IA / Modelos
+('ai.model_provider', 'openai', 'Proveedor de IA'),
+('ai.model_name', 'gpt-4', 'Modelo de IA'),
+('ai.temperature', '0.7', 'Temperatura del modelo'),
+('ai.max_tokens', '2000', 'Tokens máximos por respuesta'),
+
+-- RAG
+('rag.enabled', 'true', 'RAG activado'),
+('rag.top_k', '10', 'Número de documentos a recuperar'),
+('rag.similarity_threshold', '0.7', 'Umbral de similitud'),
+
+-- Alertas
+('alerts.enabled', 'true', 'Alertas activadas'),
+('alerts.email_notifications', 'false', 'Notificaciones por email'),
+('alerts.telegram_notifications', 'false', 'Notificaciones por Telegram'),
+
+-- Auditoría
+('audit.enabled', 'true', 'Auditoría activada'),
+('audit.retention_days', '365', 'Días de retención de logs'),
+
+-- Dominios de riesgo
+('risk.domains', '["disinformation", "manipulation", "polarization", "violence", "environmental", "border", "integrated"]', 'Dominios de riesgo monitorizados');
+
+-- ============================================
+-- VERSIONES DEL SISTEMA
+-- ============================================
+
+INSERT INTO system_versions (version, changelog, is_active) VALUES
+('1.0.0', 'Initial release - Complete database schema', TRUE);
+
+-- ============================================
+-- DOMINIOS DE RIESGO
+-- ============================================
+
+INSERT INTO risk_domains (name, description, weight) VALUES
+('disinformation', 'Desinformación y noticias falsas', 1.0),
+('manipulation', 'Manipulación e influencia', 1.0),
+('polarization', 'Polarización sociológica', 1.0),
+('violence', 'Violencia y escalada', 1.5),
+('environmental', 'Riesgo ambiental', 1.0),
+('border', 'Riesgo fronterizo/geopolítico', 1.2),
+('integrated', 'Riesgo territorial integrado', 1.5);
+
+-- ============================================
+-- TIPOS DE INTERVENCIÓN
+-- ============================================
+
+INSERT INTO intervention_types (code, name, description, trigger_conditions, cooldown_seconds) VALUES
+('A', 'Opinión fuerte', 'Usuario expresa opinión intensa', 
+ '{"claim_type": ["OPINION"], "risk_level": ["low"]}', 300),
+ 
+('B', 'Experiencia personal', 'Usuario reacciona desde experiencia personal', 
+ '{"emotional_indicators": ["personal_experience"]}', 300),
+ 
+('C', 'Hechos graves', 'Usuario menciona hechos documentados graves', 
+ '{"claim_type": ["FACT"], "risk_level": ["medium", "high"]}', 300),
+ 
+('D', 'Verificación', 'Usuario quiere verificar información', 
+ '{"intent": ["verification"]}', 300),
+ 
+('E', 'Interpretación extrema', 'Usuario muestra interpretación extrema', 
+ '{"polarization_score": {"$gt": 0.7}}', 300),
+ 
+('F', 'Incertidumbre', 'Usuario no está seguro', 
+ '{"confidence": {"$lt": 0.5}}', 300),
+ 
+('G', 'Otro', 'Otro tipo de intervención', 
+ '{}', 300);
+
+-- ============================================
+-- FIN DE SEEDS
+-- ============================================
