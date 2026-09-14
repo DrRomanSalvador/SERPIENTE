@@ -67,8 +67,24 @@ class LongitudinalStateBuilder:
         self.windows = windows
         self.lags = lags
 
+    @staticmethod
+    def _deduplicate_same_time(rows: list[Observation]) -> list[Observation]:
+        grouped: dict[tuple[str, datetime], list[Observation]] = {}
+        for row in rows:
+            if row.missing:
+                continue
+            grouped.setdefault((row.variable_id, row.event_time), []).append(row)
+        result: list[Observation] = []
+        for (variable, event_time), items in grouped.items():
+            values = {float(item.value) for item in items if item.value is not None}
+            if len(values) > 1:
+                raise ValueError(f"conflicting observations for variable={variable} at event_time={event_time.isoformat()}")
+            result.append(max(items, key=lambda item: (item.quality, item.revision, item.acquisition_time)))
+        return sorted(result, key=lambda x: (x.event_time, x.variable_id))
+
     def build(self, observations: Iterable[Observation], *, as_of: datetime) -> StateSnapshot:
         rows = [r for r in observations if r.known_at(as_of) and r.event_time <= as_of and not r.missing]
+        rows = self._deduplicate_same_time(rows)
         if not rows:
             raise ValueError("no non-missing point-in-time observations available")
         frame = pd.DataFrame([{"variable": r.variable_id, "event_time": r.event_time, "value": r.value} for r in rows])
@@ -87,7 +103,8 @@ class LongitudinalStateBuilder:
             trends[variable] = float(diff.tail(self.windows[0]).mean()) if not diff.empty else 0.0
             acceleration = diff.diff().dropna()
             accelerations[variable] = float(acceleration.tail(self.windows[0]).mean()) if not acceleration.empty else 0.0
-            std = float(diff.tail(self.windows[-1]).std(ddof=1)) if len(diff.tail(self.windows[-1])) > 1 else 0.0
+            recent_diff = diff.tail(self.windows[-1])
+            std = float(recent_diff.std(ddof=1)) if len(recent_diff) > 1 else 0.0
             volatility[variable] = std if np.isfinite(std) else 0.0
             lag_values[variable] = tuple(float(series.iloc[-(lag + 1)]) for lag in self.lags if len(series) > lag)
         numeric = np.array(list(values.values()), dtype=float)
