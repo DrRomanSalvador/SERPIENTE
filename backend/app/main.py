@@ -126,4 +126,4 @@ async def process(request: Request, payload: ProcessInput):
 
 def main() -> None:
     import uvicorn
-    uvicorn.run("app.main:app", host=os.getenv("SERPIENTE_HOST", "0.0.0.0"), port=int(os.getenv("SERPIENTE_PORT", "8001")))
+    uvicorn.run("app.main:app", host=os.getenv("SERPIENTE_HOST", "127.0.0.1"), port=int(os.getenv("SERPIENTE_PORT", "8001")))
