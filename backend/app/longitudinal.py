@@ -33,20 +33,30 @@ class PointInTimeStore:
         self._rows.extend(observations)
         self._rows.sort(key=lambda x: (x.event_time, x.acquisition_time, x.revision))
 
-    def at(self, as_of: datetime) -> list[Observation]:
+    def history_at(self, as_of: datetime) -> list[Observation]:
         if as_of.tzinfo is None:
             raise ValueError("as_of must be timezone-aware")
         visible = [row for row in self._rows if row.known_at(as_of) and row.event_time <= as_of]
-        latest: dict[tuple[str, str, str, str], Observation] = {}
+        latest: dict[tuple[str, str, str, str, datetime], Observation] = {}
         for row in visible:
+            key = (row.source_id, row.dataset_id, row.variable_id, row.geography, row.event_time)
+            previous = latest.get(key)
+            if previous is None or (row.revision, row.acquisition_time) > (previous.revision, previous.acquisition_time):
+                latest[key] = row
+        return sorted(latest.values(), key=lambda x: (x.event_time, x.variable_id, x.source_id))
+
+    def at(self, as_of: datetime) -> list[Observation]:
+        history = self.history_at(as_of)
+        latest: dict[tuple[str, str, str, str], Observation] = {}
+        for row in history:
             key = (row.source_id, row.dataset_id, row.variable_id, row.geography)
             previous = latest.get(key)
-            if previous is None or (row.event_time, row.revision, row.acquisition_time) > (previous.event_time, previous.revision, previous.acquisition_time):
+            if previous is None or row.event_time > previous.event_time:
                 latest[key] = row
         return list(latest.values())
 
     def fingerprint(self, as_of: datetime) -> str:
-        rows = [r.to_dict() for r in self.at(as_of)]
+        rows = [r.to_dict() for r in self.history_at(as_of)]
         return sha256(json.dumps(rows, sort_keys=True, default=str).encode()).hexdigest()
 
 
