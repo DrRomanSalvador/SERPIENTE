@@ -8,6 +8,7 @@ from typing import Any
 import numpy as np
 import pandas as pd
 from sklearn.ensemble import HistGradientBoostingClassifier
+from sklearn.isotonic import IsotonicRegression
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import brier_score_loss, log_loss, roc_auc_score
 from sklearn.pipeline import make_pipeline
@@ -35,15 +36,14 @@ class ValidationReport:
 
 
 class LongitudinalForecaster:
-    """Binary longitudinal forecaster with temporal holdout, calibration and ensemble disagreement."""
+    """Binary longitudinal forecaster with temporal holdout, monotonic calibration and ensemble disagreement."""
 
     def __init__(self, *, random_state: int = 17) -> None:
         self.random_state = random_state
         self._model: Any = None
         self._secondary: Any = None
+        self._calibrator: IsotonicRegression | None = None
         self._feature_names: tuple[str, ...] = ()
-        self._calibration_a = 1.0
-        self._calibration_b = 0.0
         self._train_rows = 0
         self._calibration_rows = 0
         self._seasonal_rates: dict[int, float] = {}
@@ -62,7 +62,7 @@ class LongitudinalForecaster:
         self._check_frame(frame)
         if len(frame) < 30:
             raise ValueError("at least 30 ordered observations are required")
-        feature_names = [c for c in frame.columns if c not in {"time", "target"}]
+        feature_names = [c for c in frame.columns if c not in {"time", "target", "target_time"}]
         if not feature_names:
             raise ValueError("no predictors supplied")
         if any(not np.issubdtype(frame[c].dtype, np.number) for c in feature_names):
@@ -89,10 +89,8 @@ class LongitudinalForecaster:
         self._model.fit(X_train, y_train)
         self._secondary.fit(X_train, y_train)
         cal_raw = np.clip(self._model.predict_proba(X_cal)[:, 1], 1e-8, 1 - 1e-8)
-        logits = np.log(cal_raw / (1 - cal_raw))
-        design = np.column_stack([logits, np.ones_like(logits)])
-        coef, *_ = np.linalg.lstsq(design, y_cal.to_numpy(), rcond=None)
-        self._calibration_a, self._calibration_b = map(float, coef)
+        self._calibrator = IsotonicRegression(y_min=0.0, y_max=1.0, increasing=True, out_of_bounds="clip")
+        self._calibrator.fit(cal_raw, y_cal.to_numpy())
         cal_times = pd.to_datetime(frame.iloc[train_end:cal_end]["time"], utc=True)
         self._seasonal_rates = {int(day): float(y_cal.to_numpy()[cal_times.dt.dayofweek.to_numpy() == day].mean()) for day in range(7) if (cal_times.dt.dayofweek == day).any()}
         logistic = self.predict_probability(X_test)
@@ -101,7 +99,7 @@ class LongitudinalForecaster:
         test_times = pd.to_datetime(frame.iloc[cal_end:]["time"], utc=True)
         seasonal = np.array([self._seasonal_rates.get(int(day), float(y_train.mean())) for day in test_times.dt.dayofweek], dtype=float)
         scores = [
-            ModelScore("longitudinal_logistic_calibrated", float(brier_score_loss(y_test, logistic)), float(log_loss(y_test, logistic, labels=[0, 1])), float(roc_auc_score(y_test, logistic))),
+            ModelScore("longitudinal_logistic_isotonic", float(brier_score_loss(y_test, logistic)), float(log_loss(y_test, logistic, labels=[0, 1])), float(roc_auc_score(y_test, logistic))),
             ModelScore("longitudinal_gradient_boosting", float(brier_score_loss(y_test, tree)), float(log_loss(y_test, tree, labels=[0, 1])), float(roc_auc_score(y_test, tree))),
             ModelScore("temporal_prevalence_baseline", float(brier_score_loss(y_test, prevalence)), float(log_loss(y_test, prevalence, labels=[0, 1])), None),
             ModelScore("seasonal_dayofweek_baseline", float(brier_score_loss(y_test, seasonal)), float(log_loss(y_test, seasonal, labels=[0, 1])), None),
@@ -109,12 +107,11 @@ class LongitudinalForecaster:
         return ValidationReport(train_end, cal_end - train_end, n - cal_end, tuple(scores), False, True)
 
     def _predict_pair(self, X: pd.DataFrame) -> tuple[np.ndarray, np.ndarray]:
-        if self._model is None or self._secondary is None:
+        if self._model is None or self._secondary is None or self._calibrator is None:
             raise RuntimeError("model is not fitted")
         X = X.loc[:, self._feature_names]
         raw = np.clip(self._model.predict_proba(X)[:, 1], 1e-8, 1 - 1e-8)
-        logits = np.log(raw / (1 - raw))
-        calibrated = 1 / (1 + np.exp(-(self._calibration_a * logits + self._calibration_b)))
+        calibrated = np.asarray(self._calibrator.predict(raw), dtype=float)
         secondary = np.clip(self._secondary.predict_proba(X)[:, 1], 1e-8, 1 - 1e-8)
         if not np.isfinite(calibrated).all() or not np.isfinite(secondary).all():
             raise RuntimeError("non-finite forecast produced")
