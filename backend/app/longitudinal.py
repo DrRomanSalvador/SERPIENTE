@@ -4,7 +4,6 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from hashlib import sha256
 import json
-import math
 from typing import Iterable
 
 import numpy as np
@@ -59,9 +58,9 @@ class LongitudinalStateBuilder:
         self.lags = lags
 
     def build(self, observations: Iterable[Observation], *, as_of: datetime) -> StateSnapshot:
-        rows = [r for r in observations if r.known_at(as_of) and r.event_time <= as_of]
+        rows = [r for r in observations if r.known_at(as_of) and r.event_time <= as_of and not r.missing]
         if not rows:
-            raise ValueError("no point-in-time observations available")
+            raise ValueError("no non-missing point-in-time observations available")
         frame = pd.DataFrame([{"variable": r.variable_id, "event_time": r.event_time, "value": r.value} for r in rows])
         frame = frame.sort_values("event_time")
         values: dict[str, float] = {}
@@ -71,13 +70,16 @@ class LongitudinalStateBuilder:
         lag_values: dict[str, tuple[float, ...]] = {}
         for variable, group in frame.groupby("variable", sort=True):
             series = group.set_index("event_time")["value"].astype(float).sort_index()
+            if not np.isfinite(series.to_numpy()).all():
+                raise ValueError("state contains non-finite values")
             values[variable] = float(series.iloc[-1])
             diff = series.diff().dropna()
             trends[variable] = float(diff.tail(self.windows[0]).mean()) if not diff.empty else 0.0
             acceleration = diff.diff().dropna()
             accelerations[variable] = float(acceleration.tail(self.windows[0]).mean()) if not acceleration.empty else 0.0
-            volatility[variable] = float(diff.tail(self.windows[-1]).std(ddof=1) or 0.0) if len(diff) > 1 else 0.0
-            lag_values[variable] = tuple(float(series.iloc[-lag]) for lag in self.lags if len(series) >= lag)
+            std = float(diff.tail(self.windows[-1]).std(ddof=1)) if len(diff.tail(self.windows[-1])) > 1 else 0.0
+            volatility[variable] = std if np.isfinite(std) else 0.0
+            lag_values[variable] = tuple(float(series.iloc[-(lag + 1)]) for lag in self.lags if len(series) > lag)
         numeric = np.array(list(values.values()), dtype=float)
         if not np.isfinite(numeric).all():
             raise ValueError("state contains non-finite values")
@@ -85,7 +87,10 @@ class LongitudinalStateBuilder:
         variables = sorted(values)
         for i, left in enumerate(variables):
             for right in variables[i + 1:]:
-                interactions[f"{left}*{right}"] = values[left] * values[right]
+                value = values[left] * values[right]
+                if not np.isfinite(value):
+                    raise ValueError("state interaction is non-finite")
+                interactions[f"{left}*{right}"] = float(value)
         regime = self._regime(frame)
         payload = {"as_of": as_of.astimezone(timezone.utc).isoformat(), "values": values, "trends": trends, "accelerations": accelerations, "volatility": volatility, "lags": lag_values, "interactions": interactions, "regime": regime}
         fingerprint = sha256(json.dumps(payload, sort_keys=True).encode()).hexdigest()
@@ -100,7 +105,10 @@ class LongitudinalStateBuilder:
         a, b = values[:split], values[split:]
         if len(a) < 3 or len(b) < 3:
             return "INSUFFICIENT_HISTORY"
-        mean_shift = abs(float(b.mean() - a.mean())) / (float(np.std(values)) + 1e-12)
+        std = float(np.std(values))
+        if not np.isfinite(std):
+            return "UNKNOWN"
+        mean_shift = abs(float(b.mean() - a.mean())) / (std + 1e-12)
         variance_ratio = (float(np.var(b)) + 1e-12) / (float(np.var(a)) + 1e-12)
         if mean_shift >= 1.5 or variance_ratio >= 3.0 or variance_ratio <= 1 / 3.0:
             return "SHIFT_DETECTED"
