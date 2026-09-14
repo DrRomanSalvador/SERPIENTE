@@ -6,9 +6,9 @@ import json
 import time
 from typing import Any, Callable
 
-from .ingestion import HTTPSourceClient, JSONObservationAdapter
-from .mapping import ObservationMapper
 from .contracts import Observation
+from .ingestion import HTTPSourceClient
+from .mapping import ObservationMapper
 
 
 @dataclass(frozen=True, slots=True)
@@ -40,7 +40,7 @@ class SourcePoller:
         provenance = tuple(metadata["provenance"])
         mapped: list[Observation] = []
         for row in rows:
-            mapped.append(mapper.map_row(row, acquisition_time=acquired, publication_time=publication, provenance=provenance))
+            mapped.append(mapper.map_row(row, acquisition_time=acquired, publication_time=publication, provenance=provenance, source_version=version))
         return mapped
 
     def run(self, jobs: list[tuple[PollJob, ObservationMapper]], sink: Callable[[list[Observation]], Any], *, cycles: int = 1) -> None:
