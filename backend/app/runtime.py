@@ -8,6 +8,7 @@ from .contracts import Alert, Observation
 from .engines import AlertEngine, EventEngine, PatternEngine, SignalEngine, TrajectoryEngine
 from .longitudinal import LongitudinalStateBuilder, PointInTimeStore
 from .prediction import LongitudinalForecaster, ValidationReport
+from .quality import DataProcessMonitor
 from .storage import RuntimeStore
 
 
@@ -32,6 +33,7 @@ class SerpienteRuntime:
         self.pattern_engine = PatternEngine()
         self.trajectory_engine = TrajectoryEngine()
         self.alert_engine = AlertEngine()
+        self.quality_monitor = DataProcessMonitor()
         self.forecaster = LongitudinalForecaster()
 
     def ingest(self, observations: Iterable[Observation]) -> int:
@@ -51,13 +53,14 @@ class SerpienteRuntime:
         if not current:
             raise ValueError("no current non-missing observations available")
         state = self.state_builder.build(history, as_of=as_of)
+        quality = self.quality_monitor.assess(history)
         provenance = tuple(dict.fromkeys(p for row in current for p in row.provenance))
         magnitude = sum(abs(float(row.value)) for row in current) / len(current)
         event = self.event_engine.normalize(tuple(str(row.observation_id) for row in current), event_time=max(r.event_time for r in current), geography=geography, domain=domain, event_type=event_type, magnitude=magnitude, provenance=provenance)
         signals = [self.signal_engine.from_state(event, variable_id=variable, value=value, baseline=value - state.trends.get(variable, 0.0), trend=state.trends.get(variable, 0.0), acceleration=state.accelerations.get(variable, 0.0), volatility=state.volatility.get(variable, 0.0), provenance=provenance) for variable, value in state.values.items()]
         pattern = self.pattern_engine.detect(signals)
         trajectory = self.trajectory_engine.build(pattern, signals, regime=state.regime)
-        alert = self.alert_engine.build(trajectory, event_ids=(str(event.event_id),), signal_ids=tuple(str(s.signal_id) for s in signals))
+        alert = self.alert_engine.build(trajectory, event_ids=(str(event.event_id),), signal_ids=tuple(str(s.signal_id) for s in signals), data_process_change=quality.process_change, data_process_reasons=quality.reasons)
         if self.store:
             with self.store.transaction():
                 self.store.event(event)
