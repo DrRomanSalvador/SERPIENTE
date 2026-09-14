@@ -34,8 +34,8 @@ class Trajectory:
 
 class EventEngine:
     def normalize(self, observation_ids: tuple[str, ...], *, event_time, geography: str, domain: str, event_type: str, magnitude: float, provenance: tuple[str, ...]) -> Event:
-        if not observation_ids or not provenance:
-            raise ValueError("events require observations and provenance")
+        if not observation_ids or not provenance or not domain:
+            raise ValueError("events require observations, domain and provenance")
         return Event(str(uuid4()), event_time, geography, domain, event_type, magnitude, observation_ids, provenance)
 
 
@@ -46,7 +46,7 @@ class SignalEngine:
                 raise ValueError("signal inputs must be finite")
         z = (value - baseline) / max(volatility, 1e-12)
         anomaly = min(1.0, abs(z) / 4.0)
-        return Signal(str(uuid4()), event.event_id, variable_id, value, z, anomaly, trend, acceleration, volatility, tuple(dict.fromkeys(provenance + event.provenance)))
+        return Signal(str(uuid4()), event.event_id, event.domain, variable_id, value, z, anomaly, trend, acceleration, volatility, tuple(dict.fromkeys(provenance + event.provenance)))
 
 
 class PatternEngine:
@@ -57,7 +57,7 @@ class PatternEngine:
         spread = (max(magnitudes) - min(magnitudes)) if len(magnitudes) > 1 else 0.0
         coherence = max(0.0, 1.0 - spread)
         provenance = tuple(dict.fromkeys(p for s in signals for p in s.provenance))
-        return Pattern(str(uuid4()), tuple(str(s.signal_id) for s in signals), tuple(sorted(set(s.variable_id for s in signals))), coherence, spread, provenance)
+        return Pattern(str(uuid4()), tuple(str(s.signal_id) for s in signals), tuple(sorted(set(s.domain for s in signals))), coherence, spread, provenance)
 
 
 class TrajectoryEngine:
@@ -70,11 +70,18 @@ class TrajectoryEngine:
         direction = "RISING" if trend > 0 else "FALLING" if trend < 0 else "FLAT"
         graph = nx.DiGraph()
         for signal in signals:
-            graph.add_node(str(signal.signal_id), variable=signal.variable_id, score=signal.anomaly_score)
+            graph.add_node(str(signal.signal_id), domain=signal.domain, score=signal.anomaly_score)
         nodes = list(graph.nodes)
-        for left, right in zip(nodes, nodes[1:]):
-            graph.add_edge(left, right)
-        propagation = min(1.0, graph.number_of_edges() / max(1, len(nodes) - 1))
+        for left in nodes:
+            for right in nodes:
+                if left >= right:
+                    continue
+                if graph.nodes[left]["domain"] != graph.nodes[right]["domain"]:
+                    graph.add_edge(left, right)
+        distinct_domains = len(pattern.domains)
+        possible = distinct_domains * (distinct_domains - 1) / 2
+        observed = len({tuple(sorted((graph.nodes[a]["domain"], graph.nodes[b]["domain"]))) for a, b in graph.edges})
+        propagation = min(1.0, observed / possible) if possible else 0.0
         cascade = min(1.0, persistence * pattern.coherence * propagation)
         provenance = tuple(dict.fromkeys(pattern.provenance + tuple(p for s in signals for p in s.provenance)))
         return Trajectory(str(uuid4()), pattern.pattern_id, direction, persistence, acceleration, propagation, cascade, regime, provenance)
@@ -83,6 +90,6 @@ class TrajectoryEngine:
 class AlertEngine:
     def build(self, trajectory: Trajectory, *, event_ids: tuple[str, ...] = (), signal_ids: tuple[str, ...] = (), forecasts: tuple[str, ...] = ()) -> Alert:
         raw = min(1.0, max(0.0, 0.5 * trajectory.persistence + 0.3 * trajectory.cascade_score + 0.2 * trajectory.propagation))
-        uncertainty = min(1.0, 1.0 - trajectory.persistence * trajectory.propagation)
+        uncertainty = min(1.0, 1.0 - trajectory.persistence * max(trajectory.propagation, 0.1))
         level = "CRITICAL" if raw >= 0.85 and uncertainty < 0.35 else "DANGER" if raw >= 0.70 else "WARNING" if raw >= 0.50 else "ATTENTION" if raw >= 0.30 else "BASELINE"
-        return Alert(str(uuid4()), level, raw, (f"trajectory={trajectory.direction}", f"regime={trajectory.regime}", f"cascade_score={trajectory.cascade_score:.4f}"), event_ids, signal_ids, forecasts, uncertainty, trajectory.provenance)
+        return Alert(str(uuid4()), level, raw, (f"trajectory={trajectory.direction}", f"regime={trajectory.regime}", f"cascade_score={trajectory.cascade_score:.4f}", f"domain_propagation={trajectory.propagation:.4f}"), event_ids, signal_ids, forecasts, uncertainty, trajectory.provenance)
