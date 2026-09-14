@@ -80,6 +80,10 @@ class RuntimeStore:
     def forecast(self, item: Forecast) -> None:
         self._insert("forecasts", str(item.forecast_id), item.origin_time.isoformat(), asdict(item))
 
+    def forecast_payload(self, prediction_id: str) -> dict[str, Any] | None:
+        row = self.db.execute("SELECT payload FROM forecasts WHERE id = ?", (prediction_id,)).fetchone()
+        return json.loads(row[0]) if row else None
+
     def alert(self, item: Alert) -> None:
         self._insert("alerts", str(item.alert_id), "", asdict(item))
 
