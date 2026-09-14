@@ -8,6 +8,7 @@ services:
       SERPIENTE_HOST: "0.0.0.0"
       SERPIENTE_PORT: "8001"
       SERPIENTE_RUNTIME_DB: "/data/serpiente-runtime.sqlite3"
+      SERPIENTE_DATABASE_URL: "${SERPIENTE_DATABASE_URL:-}"
       SERPIENTE_API_KEYS_JSON: "${SERPIENTE_API_KEYS_JSON:?set SERPIENTE_API_KEYS_JSON before deployment}"
     volumes:
       - serpiente-data:/data
