@@ -20,6 +20,5 @@ def test_mapping_rejects_naive_source_timestamp():
 
 
 def test_mapping_rejects_incompatible_source_unit():
-    configured = ObservationMapper(variable_id="temp", semantic_definition="air temperature", unit="degC", value_field="value", event_time_field="time", geography="Ceuta", source_id="aemet", dataset_id="obs", source_version="v1", source_unit="K", source_unit_field="unit")
     with pytest.raises(ValueError, match="unit"):
-        configured.map_row({"value":294.0,"unit":"degF","time":"2026-01-01T00:00:00+00:00"}, acquisition_time=datetime(2026,1,1,1,tzinfo=timezone.utc), provenance=("official",))
+        ObservationMapper(variable_id="temp", semantic_definition="air temperature", unit="degC", value_field="value", event_time_field="time", geography="Ceuta", source_id="aemet", dataset_id="obs", source_version="v1", source_unit="K", source_unit_field="unit")
