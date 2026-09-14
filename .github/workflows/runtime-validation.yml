@@ -1,0 +1,33 @@
+name: SERPIENTE Runtime Validation
+
+on:
+  push:
+    paths:
+      - "backend/**"
+      - "pyproject.toml"
+      - ".github/workflows/runtime-validation.yml"
+  pull_request:
+    paths:
+      - "backend/**"
+      - "pyproject.toml"
+      - ".github/workflows/runtime-validation.yml"
+
+jobs:
+  runtime:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - name: Install package and test dependencies
+        run: python -m pip install -e '.[dev]'
+      - name: Compile runtime
+        run: python -m compileall -q backend
+      - name: Run runtime tests
+        run: pytest -q backend/tests
+      - name: Run security checks
+        run: bandit -q -r backend/app
+      - name: Dependency audit
+        run: pip-audit
