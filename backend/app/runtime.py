@@ -7,6 +7,7 @@ from typing import Iterable
 from .contracts import Alert, Observation
 from .engines import AlertEngine, EventEngine, PatternEngine, SignalEngine, TrajectoryEngine
 from .longitudinal import LongitudinalStateBuilder, PointInTimeStore
+from .multihorizon import MultiHorizonForecaster
 from .prediction import LongitudinalForecaster, ValidationReport
 from .quality import DataProcessMonitor
 from .storage import RuntimeStore
@@ -35,6 +36,7 @@ class SerpienteRuntime:
         self.alert_engine = AlertEngine()
         self.quality_monitor = DataProcessMonitor()
         self.forecaster = LongitudinalForecaster()
+        self.multi_horizon: MultiHorizonForecaster | None = None
 
     def ingest(self, observations: Iterable[Observation]) -> int:
         rows = list(observations)
@@ -72,6 +74,10 @@ class SerpienteRuntime:
     def train(self, frame) -> ValidationReport:
         return self.forecaster.fit(frame)
 
+    def train_multi_horizon(self, frames: dict[str, object]) -> dict[str, ValidationReport]:
+        self.multi_horizon = MultiHorizonForecaster(tuple(frames.keys()))
+        return self.multi_horizon.fit(frames)
+
     def forecast(self, features, *, origin_time: datetime, target: str, horizon: str, regime: str, provenance: tuple[str, ...]):
         if origin_time.tzinfo is None:
             raise ValueError("origin_time must be timezone-aware")
@@ -81,3 +87,16 @@ class SerpienteRuntime:
             with self.store.transaction():
                 self.store.forecast(forecast)
         return forecast
+
+    def forecast_multi_horizon(self, features: dict[str, object], *, origin_time: datetime, target: str, regime: str, provenance: tuple[str, ...]):
+        if self.multi_horizon is None:
+            raise RuntimeError("multi-horizon models must be trained before forecasting")
+        if origin_time.tzinfo is None:
+            raise ValueError("origin_time must be timezone-aware")
+        fingerprint = self.observations.fingerprint(origin_time)
+        forecasts = self.multi_horizon.forecast(features, origin_time=origin_time, target=target, regime=regime, provenance=provenance, point_in_time_fingerprint=fingerprint)
+        if self.store:
+            with self.store.transaction():
+                for forecast in forecasts:
+                    self.store.forecast(forecast)
+        return forecasts
