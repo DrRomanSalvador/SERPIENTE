@@ -32,7 +32,7 @@ class ObservationMapper:
         self.source_unit_field = source_unit_field
         self.transformation_lineage = transformation_lineage
 
-    def map_row(self, row: dict[str, Any], *, acquisition_time: datetime, publication_time: datetime | None = None, revision: int = 0, provenance: tuple[str, ...]) -> Observation:
+    def map_row(self, row: dict[str, Any], *, acquisition_time: datetime, publication_time: datetime | None = None, revision: int = 0, provenance: tuple[str, ...], source_version: str | None = None) -> Observation:
         if self.value_field not in row or self.event_time_field not in row:
             raise ValueError("source row lacks a declared value or event-time field")
         if self.source_unit_field:
@@ -41,14 +41,17 @@ class ObservationMapper:
                 raise ValueError("source unit is incompatible with the declared mapping")
             if self.source_unit != self.unit and not self.transformation_lineage:
                 raise ValueError("unit conversion requires explicit transformation lineage")
+        version = source_version or self.source_version
+        if not version.strip():
+            raise ValueError("source version is required")
         value = row[self.value_field]
         if value is None:
-            return Observation(self.source_id, self.dataset_id, self.variable_id, self.semantic_definition, self.unit, self.geography, self._time(row[self.event_time_field]), self._time(publication_time or acquisition_time), acquisition_time, self.source_version, revision, None, provenance, missing=True, transformation_lineage=self.transformation_lineage)
+            return Observation(self.source_id, self.dataset_id, self.variable_id, self.semantic_definition, self.unit, self.geography, self._time(row[self.event_time_field]), self._time(publication_time or acquisition_time), acquisition_time, version, revision, None, provenance, missing=True, transformation_lineage=self.transformation_lineage)
         try:
             numeric = float(value)
         except (TypeError, ValueError) as exc:
             raise ValueError("declared source value is not numeric") from exc
-        return Observation(self.source_id, self.dataset_id, self.variable_id, self.semantic_definition, self.unit, self.geography, self._time(row[self.event_time_field]), self._time(publication_time or acquisition_time), acquisition_time, self.source_version, revision, numeric, provenance, transformation_lineage=self.transformation_lineage)
+        return Observation(self.source_id, self.dataset_id, self.variable_id, self.semantic_definition, self.unit, self.geography, self._time(row[self.event_time_field]), self._time(publication_time or acquisition_time), acquisition_time, version, revision, numeric, provenance, transformation_lineage=self.transformation_lineage)
 
     @staticmethod
     def _time(value: Any) -> datetime:
