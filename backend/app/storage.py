@@ -56,10 +56,14 @@ class RuntimeStore:
             self.db.execute("INSERT INTO observations(id,event_time,publication_time,acquisition_time,payload) VALUES(?,?,?,?,?)", (key, payload["event_time"], payload["publication_time"], payload["acquisition_time"], encoded))
         elif table == "events":
             self.db.execute("INSERT INTO events(id,event_time,payload) VALUES(?,?,?)", (key, timestamp, encoded))
+        elif table == "signals":
+            self.db.execute("INSERT INTO signals(id,payload) VALUES(?,?)", (key, encoded))
         elif table == "forecasts":
             self.db.execute("INSERT INTO forecasts(id,origin_time,payload) VALUES(?,?,?)", (key, timestamp, encoded))
+        elif table == "alerts":
+            self.db.execute("INSERT INTO alerts(id,payload) VALUES(?,?)", (key, encoded))
         else:
-            self.db.execute(f"INSERT INTO {table}(id,payload) VALUES(?,?)", (key, encoded))
+            raise ValueError("unknown runtime persistence table")
 
     def observation(self, item: Observation) -> None:
         self._insert("observations", str(item.observation_id), item.event_time.isoformat(), item.to_dict())
@@ -77,4 +81,10 @@ class RuntimeStore:
         self._insert("alerts", str(item.alert_id), "", asdict(item))
 
     def snapshot(self) -> dict[str, int]:
-        return {table: self.db.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0] for table in ("observations", "events", "signals", "forecasts", "alerts")}
+        return {
+            "observations": self.db.execute("SELECT COUNT(*) FROM observations").fetchone()[0],
+            "events": self.db.execute("SELECT COUNT(*) FROM events").fetchone()[0],
+            "signals": self.db.execute("SELECT COUNT(*) FROM signals").fetchone()[0],
+            "forecasts": self.db.execute("SELECT COUNT(*) FROM forecasts").fetchone()[0],
+            "alerts": self.db.execute("SELECT COUNT(*) FROM alerts").fetchone()[0],
+        }
