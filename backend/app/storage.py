@@ -24,6 +24,13 @@ class RuntimeStore:
         CREATE INDEX IF NOT EXISTS idx_observations_event_time ON observations(event_time);
         CREATE INDEX IF NOT EXISTS idx_forecasts_origin_time ON forecasts(origin_time);
         """)
+        columns = {row[1] for row in self.db.execute("PRAGMA table_info(observations)")}
+        if "publication_time" not in columns:
+            self.db.execute("ALTER TABLE observations ADD COLUMN publication_time TEXT")
+            self.db.execute("UPDATE observations SET publication_time = event_time WHERE publication_time IS NULL")
+        if "acquisition_time" not in columns:
+            self.db.execute("ALTER TABLE observations ADD COLUMN acquisition_time TEXT")
+            self.db.execute("UPDATE observations SET acquisition_time = event_time WHERE acquisition_time IS NULL")
 
     def close(self) -> None:
         self.db.close()
