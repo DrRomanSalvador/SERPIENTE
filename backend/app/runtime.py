@@ -1,0 +1,74 @@
+from __future__ import annotations
+
+from datetime import datetime, timezone
+from dataclasses import dataclass
+from typing import Iterable
+
+from .contracts import Alert, Observation
+from .engines import AlertEngine, EventEngine, PatternEngine, SignalEngine, TrajectoryEngine
+from .longitudinal import LongitudinalStateBuilder, PointInTimeStore
+from .prediction import LongitudinalForecaster, ValidationReport
+from .storage import RuntimeStore
+
+
+@dataclass(frozen=True, slots=True)
+class RuntimeResult:
+    event_id: str
+    signal_ids: tuple[str, ...]
+    pattern_id: str
+    trajectory_id: str
+    alert: Alert
+
+
+class SerpienteRuntime:
+    """Executable, provenance-preserving event -> signal -> pattern -> trajectory -> risk -> alert loop."""
+
+    def __init__(self, *, store: RuntimeStore | None = None) -> None:
+        self.store = store
+        self.observations = PointInTimeStore()
+        self.state_builder = LongitudinalStateBuilder()
+        self.event_engine = EventEngine()
+        self.signal_engine = SignalEngine()
+        self.pattern_engine = PatternEngine()
+        self.trajectory_engine = TrajectoryEngine()
+        self.alert_engine = AlertEngine()
+        self.forecaster = LongitudinalForecaster()
+
+    def ingest(self, observations: Iterable[Observation]) -> int:
+        rows = list(observations)
+        if not rows:
+            raise ValueError("at least one observation is required")
+        self.observations.add(rows)
+        if self.store:
+            for row in rows:
+                self.store.observation(row)
+        return len(rows)
+
+    def process(self, *, as_of: datetime, geography: str, domain: str, event_type: str) -> RuntimeResult:
+        rows = self.observations.at(as_of)
+        if not rows:
+            raise ValueError("no point-in-time observations available")
+        state = self.state_builder.build(rows, as_of=as_of)
+        provenance = tuple(dict.fromkeys(p for row in rows for p in row.provenance))
+        event = self.event_engine.normalize(tuple(str(row.observation_id) for row in rows), event_time=max(r.event_time for r in rows), geography=geography, domain=domain, event_type=event_type, magnitude=sum(abs(r.value) for r in rows) / len(rows), provenance=provenance)
+        signals = [self.signal_engine.from_state(event, variable_id=variable, value=value, baseline=value - state.trends.get(variable, 0.0), trend=state.trends.get(variable, 0.0), acceleration=state.accelerations.get(variable, 0.0), volatility=state.volatility.get(variable, 0.0), provenance=provenance) for variable, value in state.values.items()]
+        pattern = self.pattern_engine.detect(signals)
+        trajectory = self.trajectory_engine.build(pattern, signals, regime=state.regime)
+        alert = self.alert_engine.build(trajectory, event_ids=(str(event.event_id),), signal_ids=tuple(str(s.signal_id) for s in signals))
+        if self.store:
+            self.store.event(event)
+            for signal in signals: self.store.signal(signal)
+            self.store.alert(alert)
+        return RuntimeResult(str(event.event_id), tuple(str(s.signal_id) for s in signals), pattern.pattern_id, trajectory.trajectory_id, alert)
+
+    def train(self, frame) -> ValidationReport:
+        return self.forecaster.fit(frame)
+
+    def forecast(self, features, *, origin_time: datetime, target: str, horizon: str, regime: str, provenance: tuple[str, ...]) :
+        if origin_time.tzinfo is None:
+            raise ValueError("origin_time must be timezone-aware")
+        fingerprint = self.observations.fingerprint(origin_time)
+        forecast = self.forecaster.forecast(features, origin_time=origin_time, target=target, horizon=horizon, regime=regime, provenance=provenance, point_in_time_fingerprint=fingerprint)
+        if self.store:
+            self.store.forecast(forecast)
+        return forecast
