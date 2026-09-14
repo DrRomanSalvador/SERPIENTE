@@ -1,31 +1,26 @@
 from __future__ import annotations
 
-from datetime import timedelta
-
 import pandas as pd
 
 from .longitudinal import LongitudinalStateBuilder, PointInTimeStore
 
 
 class LongitudinalSupervisedFrameBuilder:
-    """Build binary future-outcome datasets directly from the observation history.
-
-    Each row is generated at an origin time and uses only information known at that
-    origin. The target is read strictly from a later event time.
-    """
+    """Build binary future-outcome datasets directly from point-in-time history."""
 
     def __init__(self, *, state_builder: LongitudinalStateBuilder | None = None) -> None:
         self.state_builder = state_builder or LongitudinalStateBuilder()
 
     def build(self, observations, *, target_variable: str, horizon_steps: int = 1) -> pd.DataFrame:
-        if horizon_steps < 1 or not target_variable:
-            raise ValueError("target_variable and positive horizon_steps are required")
+        observations = list(observations)
+        if horizon_steps < 1 or not target_variable or not observations:
+            raise ValueError("observations, target_variable and positive horizon_steps are required")
         store = PointInTimeStore(); store.add(observations)
-        history = store.history_at(max(row.event_time for row in store._rows))
+        history = store.history_at(max(row.event_time for row in observations))
         target_rows = sorted((row for row in history if row.variable_id == target_variable and not row.missing), key=lambda row: row.event_time)
         origins = sorted({row.event_time for row in history})
         rows: list[dict[str, float | object]] = []
-        for index, origin in enumerate(origins):
+        for origin in origins:
             future_targets = [row for row in target_rows if row.event_time > origin]
             if len(future_targets) < horizon_steps:
                 continue
