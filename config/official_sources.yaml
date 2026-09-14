@@ -1,0 +1,22 @@
+sources:
+  aemet_opendata:
+    authority: "Agencia Estatal de Meteorología"
+    host: "opendata.aemet.es"
+    scheme: "https"
+    api_key_env: "AEMET_API_KEY"
+    geography: "Ceuta"
+    domains: ["meteorology", "environment", "extreme_weather"]
+    endpoint_family: "/opendata/api/"
+    revision_policy: "retain_revision_and_acquisition_time"
+  ine_json:
+    authority: "Instituto Nacional de Estadística"
+    host: "servicios.ine.es"
+    scheme: "https"
+    geography: "Ceuta"
+    domains: ["demography", "economy", "housing", "employment", "social"]
+    endpoint_family: "/wstempus/js/"
+    revision_policy: "retain_revision_and_publication_time"
+
+# API credentials are deliberately external to the repository.
+# A source is executable only after its endpoint, variable mapping, unit,
+# geography and credential policy are configured in the deployment environment.
