@@ -37,13 +37,17 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y postgresql-client
 
-      - name: Apply canonical schema to clean database
+      - name: Apply ordered migrations to clean database
         env:
           PGPASSWORD: postgres
         run: |
-          psql --host 127.0.0.1 --port 5432 --username postgres --dbname ceutia \
-            --set ON_ERROR_STOP=1 \
-            --file database/migrations/001_initial_schema.sql
+          set -euo pipefail
+          for migration in database/migrations/*.sql; do
+            echo "Applying ${migration}"
+            psql --host 127.0.0.1 --port 5432 --username postgres --dbname ceutia \
+              --set ON_ERROR_STOP=1 \
+              --file "${migration}"
+          done
 
       - name: Apply canonical seed
         env:
@@ -53,7 +57,7 @@ jobs:
             --set ON_ERROR_STOP=1 \
             --file database/seeds/001_initial_data.sql
 
-      - name: Verify critical relations and extensions
+      - name: Verify critical relations, extensions and integrity triggers
         env:
           PGPASSWORD: postgres
         run: |
@@ -63,3 +67,6 @@ jobs:
           psql --host 127.0.0.1 --port 5432 --username postgres --dbname ceutia \
             --set ON_ERROR_STOP=1 \
             --command "SELECT COUNT(*) AS users FROM users; SELECT COUNT(*) AS roles FROM roles; SELECT COUNT(*) AS sources FROM sources; SELECT COUNT(*) AS domains FROM domain_config;"
+          psql --host 127.0.0.1 --port 5432 --username postgres --dbname ceutia \
+            --set ON_ERROR_STOP=1 \
+            --command "SELECT COUNT(*) AS array_integrity_triggers FROM pg_trigger WHERE NOT tgisinternal AND tgname LIKE 'validate_%';"
