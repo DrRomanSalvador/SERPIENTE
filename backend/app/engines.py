@@ -88,8 +88,11 @@ class TrajectoryEngine:
 
 
 class AlertEngine:
-    def build(self, trajectory: Trajectory, *, event_ids: tuple[str, ...] = (), signal_ids: tuple[str, ...] = (), forecasts: tuple[str, ...] = ()) -> Alert:
+    def build(self, trajectory: Trajectory, *, event_ids: tuple[str, ...] = (), signal_ids: tuple[str, ...] = (), forecasts: tuple[str, ...] = (), data_process_change: bool = False, data_process_reasons: tuple[str, ...] = ()) -> Alert:
         raw = min(1.0, max(0.0, 0.5 * trajectory.persistence + 0.3 * trajectory.cascade_score + 0.2 * trajectory.propagation))
         uncertainty = min(1.0, 1.0 - trajectory.persistence * max(trajectory.propagation, 0.1))
+        rationale = [f"trajectory={trajectory.direction}", f"regime={trajectory.regime}", f"cascade_score={trajectory.cascade_score:.4f}", f"domain_propagation={trajectory.propagation:.4f}"]
+        if data_process_change:
+            return Alert(str(uuid4()), "DATA_QUALITY_REVIEW", 0.0, tuple(rationale + list(data_process_reasons)), event_ids, signal_ids, forecasts, 1.0, trajectory.provenance)
         level = "CRITICAL" if raw >= 0.85 and uncertainty < 0.35 else "DANGER" if raw >= 0.70 else "WARNING" if raw >= 0.50 else "ATTENTION" if raw >= 0.30 else "BASELINE"
-        return Alert(str(uuid4()), level, raw, (f"trajectory={trajectory.direction}", f"regime={trajectory.regime}", f"cascade_score={trajectory.cascade_score:.4f}", f"domain_propagation={trajectory.propagation:.4f}"), event_ids, signal_ids, forecasts, uncertainty, trajectory.provenance)
+        return Alert(str(uuid4()), level, raw, tuple(rationale), event_ids, signal_ids, forecasts, uncertainty, trajectory.provenance)
