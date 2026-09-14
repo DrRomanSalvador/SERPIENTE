@@ -6,7 +6,7 @@ import pytest
 
 from app.ceutia_boundary import prediction_to_ceutia
 from app.contracts import Observation
-from app.ingestion import CSVObservationAdapter, JSONObservationAdapter
+from app.ingestion import CSVObservationAdapter, JSONObservationAdapter, HTTPSourceClient, IngestionError
 from app.longitudinal import LongitudinalStateBuilder, PointInTimeStore
 from app.prediction import LongitudinalForecaster
 from app.runtime import SerpienteRuntime
@@ -84,6 +84,12 @@ def test_adapters_preserve_metadata():
     rows = JSONObservationAdapter().ingest(__import__("json").dumps(payload), metadata={"source_id":"s","dataset_id":"d"}); assert rows[0].source_id == "s"
     csv = "variable_id,semantic_definition,unit,geography,event_time,publication_time,acquisition_time,source_version,revision,value,provenance\nv,semantic,u,Ceuta,2026-01-01T00:00:00+00:00,2026-01-01T00:00:00+00:00,2026-01-01T01:00:00+00:00,1,0,2.0,official\n"
     rows = CSVObservationAdapter().ingest(csv, metadata={"source_id":"s","dataset_id":"d"}); assert rows[0].dataset_id == "d"
+
+
+def test_source_client_requires_explicit_allowlist_and_rejects_private_targets():
+    with pytest.raises(ValueError): HTTPSourceClient()
+    client = HTTPSourceClient(allowed_hosts=frozenset({"localhost"}))
+    with pytest.raises(IngestionError): client.fetch("https://localhost/data", source_id="s", dataset_id="d")
 
 
 def test_ceutia_boundary_requires_provenance():
