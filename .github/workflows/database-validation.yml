@@ -1,0 +1,65 @@
+name: SERPIENTE Database Validation
+
+on:
+  push:
+    paths:
+      - "database/**"
+      - ".github/workflows/database-validation.yml"
+  pull_request:
+    paths:
+      - "database/**"
+      - ".github/workflows/database-validation.yml"
+
+jobs:
+  postgres-clean-install:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: pgvector/pgvector:pg17
+        env:
+          POSTGRES_DB: ceutia
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres -d ceutia"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install PostgreSQL client
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client
+
+      - name: Apply canonical schema to clean database
+        env:
+          PGPASSWORD: postgres
+        run: |
+          psql --host 127.0.0.1 --port 5432 --username postgres --dbname ceutia \
+            --set ON_ERROR_STOP=1 \
+            --file database/migrations/001_initial_schema.sql
+
+      - name: Apply canonical seed
+        env:
+          PGPASSWORD: postgres
+        run: |
+          psql --host 127.0.0.1 --port 5432 --username postgres --dbname ceutia \
+            --set ON_ERROR_STOP=1 \
+            --file database/seeds/001_initial_data.sql
+
+      - name: Verify critical relations and extensions
+        env:
+          PGPASSWORD: postgres
+        run: |
+          psql --host 127.0.0.1 --port 5432 --username postgres --dbname ceutia \
+            --set ON_ERROR_STOP=1 \
+            --command "SELECT extname FROM pg_extension WHERE extname IN ('uuid-ossp','pg_trgm','vector') ORDER BY extname;"
+          psql --host 127.0.0.1 --port 5432 --username postgres --dbname ceutia \
+            --set ON_ERROR_STOP=1 \
+            --command "SELECT COUNT(*) AS users FROM users; SELECT COUNT(*) AS roles FROM roles; SELECT COUNT(*) AS sources FROM sources; SELECT COUNT(*) AS domains FROM domain_config;"
