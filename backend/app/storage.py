@@ -2,9 +2,10 @@ from __future__ import annotations
 
 import json
 import sqlite3
+from contextlib import contextmanager
 from dataclasses import asdict
 from pathlib import Path
-from typing import Any
+from typing import Any, Iterator
 
 from .contracts import Alert, Event, Forecast, Observation, Signal
 
@@ -31,6 +32,20 @@ class RuntimeStore:
         if "acquisition_time" not in columns:
             self.db.execute("ALTER TABLE observations ADD COLUMN acquisition_time TEXT")
             self.db.execute("UPDATE observations SET acquisition_time = event_time WHERE acquisition_time IS NULL")
+
+    @contextmanager
+    def transaction(self) -> Iterator[None]:
+        if self.db.in_transaction:
+            yield
+            return
+        self.db.execute("BEGIN IMMEDIATE")
+        try:
+            yield
+        except Exception:
+            self.db.rollback()
+            raise
+        else:
+            self.db.commit()
 
     def close(self) -> None:
         self.db.close()
