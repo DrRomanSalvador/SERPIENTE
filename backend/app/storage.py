@@ -16,7 +16,7 @@ class RuntimeStore:
         self.db.execute("PRAGMA journal_mode=WAL")
         self.db.execute("PRAGMA foreign_keys=ON")
         self.db.executescript("""
-        CREATE TABLE IF NOT EXISTS observations (id TEXT PRIMARY KEY, event_time TEXT NOT NULL, acquisition_time TEXT NOT NULL, payload TEXT NOT NULL);
+        CREATE TABLE IF NOT EXISTS observations (id TEXT PRIMARY KEY, event_time TEXT NOT NULL, publication_time TEXT NOT NULL, acquisition_time TEXT NOT NULL, payload TEXT NOT NULL);
         CREATE TABLE IF NOT EXISTS events (id TEXT PRIMARY KEY, event_time TEXT NOT NULL, payload TEXT NOT NULL);
         CREATE TABLE IF NOT EXISTS signals (id TEXT PRIMARY KEY, payload TEXT NOT NULL);
         CREATE TABLE IF NOT EXISTS forecasts (id TEXT PRIMARY KEY, origin_time TEXT NOT NULL, payload TEXT NOT NULL);
@@ -29,11 +29,15 @@ class RuntimeStore:
         self.db.close()
 
     def _insert(self, table: str, key: str, timestamp: str, payload: dict[str, Any]) -> None:
-        column = "origin_time" if table == "forecasts" else "event_time" if table in {"observations", "events"} else None
-        if column:
-            self.db.execute(f"INSERT INTO {table}(id,{column},payload) VALUES(?,?,?)", (key, timestamp, json.dumps(payload, sort_keys=True, default=str)))
+        encoded = json.dumps(payload, sort_keys=True, default=str)
+        if table == "observations":
+            self.db.execute("INSERT INTO observations(id,event_time,publication_time,acquisition_time,payload) VALUES(?,?,?,?,?)", (key, payload["event_time"], payload["publication_time"], payload["acquisition_time"], encoded))
+        elif table == "events":
+            self.db.execute("INSERT INTO events(id,event_time,payload) VALUES(?,?,?)", (key, timestamp, encoded))
+        elif table == "forecasts":
+            self.db.execute("INSERT INTO forecasts(id,origin_time,payload) VALUES(?,?,?)", (key, timestamp, encoded))
         else:
-            self.db.execute(f"INSERT INTO {table}(id,payload) VALUES(?,?)", (key, json.dumps(payload, sort_keys=True, default=str)))
+            self.db.execute(f"INSERT INTO {table}(id,payload) VALUES(?,?)", (key, encoded))
 
     def observation(self, item: Observation) -> None:
         self._insert("observations", str(item.observation_id), item.event_time.isoformat(), item.to_dict())
