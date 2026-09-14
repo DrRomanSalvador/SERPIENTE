@@ -16,7 +16,7 @@ from pydantic import BaseModel, Field
 from .contracts import Observation
 from .outcomes import ForecastOutcome
 from .runtime import SerpienteRuntime
-from .storage import RuntimeStore
+from .storage_factory import create_runtime_store
 
 MAX_BODY_BYTES = 2_000_000
 RATE_LIMIT = 60
@@ -80,8 +80,7 @@ class OutcomeInput(BaseModel):
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
-    path = os.getenv("SERPIENTE_RUNTIME_DB", "serpiente-runtime.sqlite3")
-    app.state.runtime = SerpienteRuntime(store=RuntimeStore(path))
+    app.state.runtime = SerpienteRuntime(store=create_runtime_store())
     app.state.rate = defaultdict(list)
     try:
         yield
