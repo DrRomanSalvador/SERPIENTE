@@ -43,6 +43,8 @@ class Observation:
         object.__setattr__(self, "event_time", _utc(self.event_time, "event_time"))
         object.__setattr__(self, "publication_time", _utc(self.publication_time, "publication_time"))
         object.__setattr__(self, "acquisition_time", _utc(self.acquisition_time, "acquisition_time"))
+        if self.event_time > self.acquisition_time:
+            raise ValueError("event_time cannot be after acquisition_time")
         if self.publication_time > self.acquisition_time:
             raise ValueError("publication_time cannot be after acquisition_time")
         if self.revision < 0:
