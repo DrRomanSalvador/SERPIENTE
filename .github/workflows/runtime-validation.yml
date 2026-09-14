@@ -4,12 +4,18 @@ on:
   push:
     paths:
       - "backend/**"
+      - "config/**"
       - "pyproject.toml"
+      - "Dockerfile"
+      - "docker-compose.yml"
       - ".github/workflows/runtime-validation.yml"
   pull_request:
     paths:
       - "backend/**"
+      - "config/**"
       - "pyproject.toml"
+      - "Dockerfile"
+      - "docker-compose.yml"
       - ".github/workflows/runtime-validation.yml"
 
 concurrency:
@@ -35,3 +41,9 @@ jobs:
         run: bandit -q -r backend/app
       - name: Dependency audit
         run: pip-audit
+      - name: Validate Compose configuration
+        run: docker compose config
+        env:
+          SERPIENTE_API_KEYS_JSON: '{"ci-key":"ADMIN"}'
+      - name: Build runtime image
+        run: docker build --tag serpiente:ci .
