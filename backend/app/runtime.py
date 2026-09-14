@@ -16,6 +16,7 @@ from .prediction import LongitudinalForecaster, ValidationReport
 from .quality import DataProcessMonitor
 from .scientific_protocol import ScientificValidationProtocol
 from .storage import RuntimeStore
+from .supervised import LongitudinalSupervisedFrameBuilder
 from .validation import drift_report, numerical_adversarial_check, temporal_leakage_check
 
 
@@ -43,6 +44,7 @@ class SerpienteRuntime:
         self.quality_monitor = DataProcessMonitor()
         self.forecaster = LongitudinalForecaster()
         self.multi_horizon: MultiHorizonForecaster | None = None
+        self.supervised_builder = LongitudinalSupervisedFrameBuilder(state_builder=self.state_builder)
         self.scientific_protocol = ScientificValidationProtocol(
             protocol_id="serpiente-predictive-v1",
             baseline="temporal prevalence and seasonal day-of-week baseline",
@@ -110,6 +112,10 @@ class SerpienteRuntime:
             if drift["drift_detected"]:
                 pass
         return self.forecaster.fit(frame)
+
+    def train_from_observations(self, observations: Iterable[Observation], *, target_variable: str, horizon_steps: int = 1) -> ValidationReport:
+        frame = self.supervised_builder.build(observations, target_variable=target_variable, horizon_steps=horizon_steps)
+        return self.train(frame)
 
     def train_multi_horizon(self, frames: dict[str, object]) -> dict[str, ValidationReport]:
         self.multi_horizon = MultiHorizonForecaster(tuple(frames.keys()))
