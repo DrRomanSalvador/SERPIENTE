@@ -1,7 +1,7 @@
 -- Bootstrap the users relation before 001_initial_schema.sql.
--- 001 retains its canonical user definition with IF NOT EXISTS so this
--- migration remains the single execution-order fix without changing the
--- intended schema of the users table.
+-- The UUID extension must exist before the users UUID default is defined.
+CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+
 CREATE TABLE IF NOT EXISTS users (
     id UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
     email VARCHAR(255) NOT NULL,
