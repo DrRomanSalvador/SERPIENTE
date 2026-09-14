@@ -70,3 +70,26 @@ jobs:
           psql --host 127.0.0.1 --port 5432 --username postgres --dbname ceutia \
             --set ON_ERROR_STOP=1 \
             --command "SELECT COUNT(*) AS array_integrity_triggers FROM pg_trigger WHERE NOT tgisinternal AND tgname LIKE 'validate_%';"
+
+      - name: Verify invalid array references fail closed
+        env:
+          PGPASSWORD: postgres
+        run: |
+          psql --host 127.0.0.1 --port 5432 --username postgres --dbname ceutia \
+            --set ON_ERROR_STOP=1 <<'SQL'
+          DO $$
+          DECLARE
+              fired BOOLEAN := false;
+          BEGIN
+              BEGIN
+                  INSERT INTO evidences (title, type, observation_ids)
+                  VALUES ('__integrity_probe__', 'DOCUMENTARY', ARRAY['ffffffff-ffff-ffff-ffff-ffffffffffff']::uuid[]);
+              EXCEPTION WHEN OTHERS THEN
+                  fired := position('referential integrity violation' IN SQLERRM) > 0;
+              END;
+              IF NOT fired THEN
+                  RAISE EXCEPTION 'array referential-integrity trigger did not reject an unknown observation UUID';
+              END IF;
+          END;
+          $$;
+          SQL
