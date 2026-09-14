@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime, timezone
-from math import isfinite
+from math import isfinite, log
 
 
 @dataclass(frozen=True, slots=True)
@@ -11,7 +11,7 @@ class ForecastOutcome:
     origin_time: datetime
     outcome_time: datetime
     target: str
-    observed: float
+    observed: int
     predicted_probability: float
     horizon: str
     provenance: tuple[str, ...]
@@ -25,8 +25,8 @@ class ForecastOutcome:
             raise ValueError("predicted probability must be finite and in [0,1]")
         if self.observed not in (0, 1):
             raise ValueError("binary prospective outcome must be 0 or 1")
-        if not self.provenance:
-            raise ValueError("outcome provenance is required")
+        if not self.prediction_id or not self.target or not self.horizon or not self.provenance:
+            raise ValueError("complete prospective outcome identity and provenance are required")
 
     @property
     def brier_error(self) -> float:
@@ -35,4 +35,4 @@ class ForecastOutcome:
     @property
     def log_loss_error(self) -> float:
         p = min(max(self.predicted_probability, 1e-8), 1 - 1e-8)
-        return float(-(self.observed * __import__("math").log(p) + (1 - self.observed) * __import__("math").log(1 - p)))
+        return float(-(self.observed * log(p) + (1 - self.observed) * log(1 - p)))
