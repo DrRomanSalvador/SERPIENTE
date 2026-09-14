@@ -24,12 +24,13 @@ class LongitudinalSupervisedFrameBuilder:
             future_targets = [row for row in target_rows if row.event_time > origin]
             if len(future_targets) < horizon_steps:
                 continue
-            target = future_targets[horizon_steps - 1]
             visible = store.history_at(origin)
             if not visible:
                 continue
             state = self.state_builder.build(visible, as_of=origin)
-            features: dict[str, float | object] = {"time": origin, "target": float(target.value), "target_time": target.event_time}
+            if any(len(state.lags[variable]) < len(self.state_builder.lags) for variable in state.values):
+                continue
+            features: dict[str, float | object] = {"time": origin, "target": float(future_targets[horizon_steps - 1].value), "target_time": future_targets[horizon_steps - 1].event_time}
             for variable, value in state.values.items():
                 features[f"value__{variable}"] = value
                 features[f"trend__{variable}"] = state.trends[variable]
@@ -41,8 +42,10 @@ class LongitudinalSupervisedFrameBuilder:
                 features[f"interaction__{name}"] = value
             rows.append(features)
         if not rows:
-            raise ValueError("insufficient longitudinal history for the requested target and horizon")
+            raise ValueError("insufficient longitudinal history for the requested target, horizon and lag structure")
         frame = pd.DataFrame(rows).sort_values("time").reset_index(drop=True)
         if not set(frame["target"].unique()).issubset({0.0, 1.0}):
             raise ValueError("binary longitudinal target must contain only 0/1 outcomes")
+        if frame.drop(columns=["time", "target_time", "target"]).isna().any().any():
+            raise ValueError("longitudinal training frame contains missing predictor values")
         return frame
