@@ -9,7 +9,9 @@ import numpy as np
 from .contracts import Alert, Observation
 from .engines import AlertEngine, EventEngine, PatternEngine, SignalEngine, TrajectoryEngine
 from .longitudinal import LongitudinalStateBuilder, PointInTimeStore
+from .mapping import ObservationMapper
 from .multihorizon import MultiHorizonForecaster
+from .polling import PollJob, SourcePoller
 from .prediction import LongitudinalForecaster, ValidationReport
 from .quality import DataProcessMonitor
 from .scientific_protocol import ScientificValidationProtocol
@@ -66,6 +68,10 @@ class SerpienteRuntime:
         self.observations.add(rows)
         return len(rows)
 
+    def poll_once(self, client, job: PollJob, mapper: ObservationMapper) -> int:
+        rows = SourcePoller(client).poll_once(job, mapper)
+        return self.ingest(rows)
+
     def process(self, *, as_of: datetime, geography: str, domain: str, event_type: str) -> RuntimeResult:
         history = self.observations.history_at(as_of)
         current = [row for row in self.observations.at(as_of) if not row.missing]
@@ -102,7 +108,6 @@ class SerpienteRuntime:
         if len(numeric) >= 10:
             drift = drift_report(numeric.iloc[: len(numeric)//2, 0], numeric.iloc[len(numeric)//2:, 0])
             if drift["drift_detected"]:
-                # Drift is preserved as model uncertainty; it is not converted into an automatic failure.
                 pass
         return self.forecaster.fit(frame)
 
