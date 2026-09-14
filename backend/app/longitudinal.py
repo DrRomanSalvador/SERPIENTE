@@ -1,0 +1,107 @@
+from __future__ import annotations
+
+from dataclasses import dataclass
+from datetime import datetime, timezone
+from hashlib import sha256
+import json
+import math
+from typing import Iterable
+
+import numpy as np
+import pandas as pd
+
+from .contracts import Observation
+
+
+@dataclass(frozen=True, slots=True)
+class StateSnapshot:
+    as_of: datetime
+    values: dict[str, float]
+    trends: dict[str, float]
+    accelerations: dict[str, float]
+    volatility: dict[str, float]
+    lags: dict[str, tuple[float, ...]]
+    interactions: dict[str, float]
+    regime: str
+    fingerprint: str
+
+
+class PointInTimeStore:
+    def __init__(self) -> None:
+        self._rows: list[Observation] = []
+
+    def add(self, observations: Iterable[Observation]) -> None:
+        self._rows.extend(observations)
+        self._rows.sort(key=lambda x: (x.event_time, x.acquisition_time, x.revision))
+
+    def at(self, as_of: datetime) -> list[Observation]:
+        if as_of.tzinfo is None:
+            raise ValueError("as_of must be timezone-aware")
+        visible = [row for row in self._rows if row.known_at(as_of) and row.event_time <= as_of]
+        latest: dict[tuple[str, str, str, str], Observation] = {}
+        for row in visible:
+            key = (row.source_id, row.dataset_id, row.variable_id, row.geography)
+            previous = latest.get(key)
+            if previous is None or (row.event_time, row.revision, row.acquisition_time) > (previous.event_time, previous.revision, previous.acquisition_time):
+                latest[key] = row
+        return list(latest.values())
+
+    def fingerprint(self, as_of: datetime) -> str:
+        rows = [r.to_dict() for r in self.at(as_of)]
+        return sha256(json.dumps(rows, sort_keys=True, default=str).encode()).hexdigest()
+
+
+class LongitudinalStateBuilder:
+    def __init__(self, *, windows: tuple[int, ...] = (3, 7, 14), lags: tuple[int, ...] = (1, 2, 7)) -> None:
+        if not windows or not lags or any(x <= 0 for x in (*windows, *lags)):
+            raise ValueError("windows and lags must contain positive integers")
+        self.windows = windows
+        self.lags = lags
+
+    def build(self, observations: Iterable[Observation], *, as_of: datetime) -> StateSnapshot:
+        rows = [r for r in observations if r.known_at(as_of) and r.event_time <= as_of]
+        if not rows:
+            raise ValueError("no point-in-time observations available")
+        frame = pd.DataFrame([{"variable": r.variable_id, "event_time": r.event_time, "value": r.value} for r in rows])
+        frame = frame.sort_values("event_time")
+        values: dict[str, float] = {}
+        trends: dict[str, float] = {}
+        accelerations: dict[str, float] = {}
+        volatility: dict[str, float] = {}
+        lag_values: dict[str, tuple[float, ...]] = {}
+        for variable, group in frame.groupby("variable", sort=True):
+            series = group.set_index("event_time")["value"].astype(float).sort_index()
+            values[variable] = float(series.iloc[-1])
+            diff = series.diff().dropna()
+            trends[variable] = float(diff.tail(self.windows[0]).mean()) if not diff.empty else 0.0
+            acceleration = diff.diff().dropna()
+            accelerations[variable] = float(acceleration.tail(self.windows[0]).mean()) if not acceleration.empty else 0.0
+            volatility[variable] = float(diff.tail(self.windows[-1]).std(ddof=1) or 0.0) if len(diff) > 1 else 0.0
+            lag_values[variable] = tuple(float(series.iloc[-lag]) for lag in self.lags if len(series) >= lag)
+        numeric = np.array(list(values.values()), dtype=float)
+        if not np.isfinite(numeric).all():
+            raise ValueError("state contains non-finite values")
+        interactions: dict[str, float] = {}
+        variables = sorted(values)
+        for i, left in enumerate(variables):
+            for right in variables[i + 1:]:
+                interactions[f"{left}*{right}"] = values[left] * values[right]
+        regime = self._regime(frame)
+        payload = {"as_of": as_of.astimezone(timezone.utc).isoformat(), "values": values, "trends": trends, "accelerations": accelerations, "volatility": volatility, "lags": lag_values, "interactions": interactions, "regime": regime}
+        fingerprint = sha256(json.dumps(payload, sort_keys=True).encode()).hexdigest()
+        return StateSnapshot(as_of, values, trends, accelerations, volatility, lag_values, interactions, regime, fingerprint)
+
+    @staticmethod
+    def _regime(frame: pd.DataFrame) -> str:
+        if len(frame) < 8:
+            return "INSUFFICIENT_HISTORY"
+        values = frame["value"].to_numpy(dtype=float)
+        split = len(values) // 2
+        a, b = values[:split], values[split:]
+        if len(a) < 3 or len(b) < 3:
+            return "INSUFFICIENT_HISTORY"
+        mean_shift = abs(float(b.mean() - a.mean())) / (float(np.std(values)) + 1e-12)
+        variance_ratio = (float(np.var(b)) + 1e-12) / (float(np.var(a)) + 1e-12)
+        if mean_shift >= 1.5 or variance_ratio >= 3.0 or variance_ratio <= 1 / 3.0:
+            return "SHIFT_DETECTED"
+        return "STABLE"
