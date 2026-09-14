@@ -38,10 +38,11 @@ class SerpienteRuntime:
         rows = list(observations)
         if not rows:
             raise ValueError("at least one observation is required")
-        self.observations.add(rows)
         if self.store:
-            for row in rows:
-                self.store.observation(row)
+            with self.store.transaction():
+                for row in rows:
+                    self.store.observation(row)
+        self.observations.add(rows)
         return len(rows)
 
     def process(self, *, as_of: datetime, geography: str, domain: str, event_type: str) -> RuntimeResult:
@@ -58,10 +59,11 @@ class SerpienteRuntime:
         trajectory = self.trajectory_engine.build(pattern, signals, regime=state.regime)
         alert = self.alert_engine.build(trajectory, event_ids=(str(event.event_id),), signal_ids=tuple(str(s.signal_id) for s in signals))
         if self.store:
-            self.store.event(event)
-            for signal in signals:
-                self.store.signal(signal)
-            self.store.alert(alert)
+            with self.store.transaction():
+                self.store.event(event)
+                for signal in signals:
+                    self.store.signal(signal)
+                self.store.alert(alert)
         return RuntimeResult(str(event.event_id), tuple(str(s.signal_id) for s in signals), pattern.pattern_id, trajectory.trajectory_id, alert)
 
     def train(self, frame) -> ValidationReport:
@@ -73,5 +75,6 @@ class SerpienteRuntime:
         fingerprint = self.observations.fingerprint(origin_time)
         forecast = self.forecaster.forecast(features, origin_time=origin_time, target=target, horizon=horizon, regime=regime, provenance=provenance, point_in_time_fingerprint=fingerprint)
         if self.store:
-            self.store.forecast(forecast)
+            with self.store.transaction():
+                self.store.forecast(forecast)
         return forecast
