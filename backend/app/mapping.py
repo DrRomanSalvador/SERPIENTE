@@ -7,11 +7,7 @@ from .contracts import Observation
 
 
 class ObservationMapper:
-    """Map an official structured row into the canonical observation contract.
-
-    No field is silently renamed or unit-converted. A source-unit mismatch is
-    rejected unless an explicit transformation is represented by the mapping.
-    """
+    """Map an official structured row into the canonical observation contract."""
 
     def __init__(self, *, variable_id: str, semantic_definition: str, unit: str, value_field: str, event_time_field: str, geography: str, source_id: str, dataset_id: str, source_version: str, source_unit: str | None = None, source_unit_field: str | None = None, transformation_lineage: tuple[str, ...] = ()) -> None:
         required = (variable_id, semantic_definition, unit, value_field, event_time_field, geography, source_id, dataset_id, source_version)
@@ -19,6 +15,8 @@ class ObservationMapper:
             raise ValueError("canonical source mapping requires complete semantic metadata")
         if source_unit_field and not source_unit:
             raise ValueError("source_unit is required when source_unit_field is configured")
+        if source_unit is not None and source_unit != unit:
+            raise ValueError("unit conversion is not implemented; source and target units must match")
         self.variable_id = variable_id
         self.semantic_definition = semantic_definition
         self.unit = unit
@@ -35,12 +33,8 @@ class ObservationMapper:
     def map_row(self, row: dict[str, Any], *, acquisition_time: datetime, publication_time: datetime | None = None, revision: int = 0, provenance: tuple[str, ...], source_version: str | None = None) -> Observation:
         if self.value_field not in row or self.event_time_field not in row:
             raise ValueError("source row lacks a declared value or event-time field")
-        if self.source_unit_field:
-            actual_unit = row.get(self.source_unit_field)
-            if actual_unit != self.source_unit:
-                raise ValueError("source unit is incompatible with the declared mapping")
-            if self.source_unit != self.unit and not self.transformation_lineage:
-                raise ValueError("unit conversion requires explicit transformation lineage")
+        if self.source_unit_field and row.get(self.source_unit_field) != self.source_unit:
+            raise ValueError("source unit is incompatible with the declared mapping")
         version = source_version or self.source_version
         if not version.strip():
             raise ValueError("source version is required")
