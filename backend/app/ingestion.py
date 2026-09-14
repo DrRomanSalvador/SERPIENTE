@@ -32,7 +32,18 @@ class JSONObservationAdapter(SourceAdapter):
         rows = raw if isinstance(raw, list) else raw.get("observations", [])
         if not isinstance(rows, list):
             raise IngestionError("JSON observation payload must contain a list")
-        return [Observation(**{**row, **metadata}) for row in rows]
+        result = []
+        for row in rows:
+            row = {**row, **metadata}
+            for key in ("event_time", "publication_time", "acquisition_time"):
+                if isinstance(row.get(key), str):
+                    row[key] = datetime.fromisoformat(row[key])
+            if isinstance(row.get("provenance"), list):
+                row["provenance"] = tuple(row["provenance"])
+            if isinstance(row.get("transformation_lineage"), list):
+                row["transformation_lineage"] = tuple(row["transformation_lineage"])
+            result.append(Observation(**row))
+        return result
 
 
 class CSVObservationAdapter(SourceAdapter):
