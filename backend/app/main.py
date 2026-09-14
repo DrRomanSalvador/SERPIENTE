@@ -6,6 +6,7 @@ import os
 import time
 from collections import defaultdict
 from contextlib import asynccontextmanager
+from datetime import datetime, timezone
 from typing import AsyncIterator
 
 from fastapi import FastAPI, HTTPException, Request
@@ -13,6 +14,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 from .contracts import Observation
+from .outcomes import ForecastOutcome
 from .runtime import SerpienteRuntime
 from .storage import RuntimeStore
 
@@ -68,6 +70,14 @@ class ProcessInput(BaseModel):
     event_type: str = Field(min_length=1, max_length=100)
 
 
+class OutcomeInput(BaseModel):
+    prediction_id: str = Field(min_length=1, max_length=200)
+    outcome_time: datetime
+    target: str = Field(min_length=1, max_length=200)
+    observed: int = Field(ge=0, le=1)
+    provenance: list[str] = Field(min_length=1, max_length=20)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     path = os.getenv("SERPIENTE_RUNTIME_DB", "serpiente-runtime.sqlite3")
@@ -111,7 +121,6 @@ async def ready(request: Request):
 @app.post("/v1/observations")
 async def ingest(request: Request, observations: list[ObservationInput]):
     _role(request, {"INGESTOR", "ANALYST"})
-    from datetime import datetime
     rows = [Observation(**{**item.model_dump(), "event_time": datetime.fromisoformat(item.event_time), "publication_time": datetime.fromisoformat(item.publication_time), "acquisition_time": datetime.fromisoformat(item.acquisition_time), "provenance": tuple(item.provenance), "transformation_lineage": tuple(item.transformation_lineage)}) for item in observations]
     return {"accepted": request.app.state.runtime.ingest(rows)}
 
@@ -119,9 +128,23 @@ async def ingest(request: Request, observations: list[ObservationInput]):
 @app.post("/v1/process")
 async def process(request: Request, payload: ProcessInput):
     _role(request, {"ANALYST"})
-    from datetime import datetime
     result = request.app.state.runtime.process(as_of=datetime.fromisoformat(payload.as_of), geography=payload.geography, domain=payload.domain, event_type=payload.event_type)
     return {"event_id": result.event_id, "signal_ids": result.signal_ids, "pattern_id": result.pattern_id, "trajectory_id": result.trajectory_id, "alert": {"alert_id": str(result.alert.alert_id), "level": result.alert.level, "score": result.alert.score, "uncertainty": result.alert.uncertainty, "provenance": result.alert.provenance}}
+
+
+@app.post("/v1/outcomes")
+async def record_outcome(request: Request, payload: OutcomeInput):
+    _role(request, {"ANALYST"})
+    stored = request.app.state.runtime.store.forecast_payload(payload.prediction_id)
+    if stored is None:
+        raise HTTPException(404, "prediction_id does not reference a persisted forecast")
+    origin = datetime.fromisoformat(stored["origin_time"])
+    if stored["target"] != payload.target:
+        raise HTTPException(422, "outcome target does not match forecast target")
+    outcome = ForecastOutcome(payload.prediction_id, origin, payload.outcome_time, payload.target, payload.observed, float(stored["probability"]), stored["horizon"], tuple(payload.provenance))
+    with request.app.state.runtime.store.transaction():
+        request.app.state.runtime.store.outcome(outcome)
+    return {"prediction_id": outcome.prediction_id, "brier_error": outcome.brier_error, "log_loss_error": outcome.log_loss_error, "outcome_time": outcome.outcome_time.astimezone(timezone.utc).isoformat()}
 
 
 def main() -> None:
