@@ -98,12 +98,14 @@ async def request_limits(request: Request, call_next):
         if len(body) > MAX_BODY_BYTES:
             return JSONResponse(status_code=413, content={"error": "request_too_large"})
         key = request.headers.get("X-SERPIENTE-API-Key", "")
+        client_host = request.client.host if request.client else "unknown"
+        identity = f"{client_host}:{key}"
         now = time.monotonic()
-        hits = [t for t in request.app.state.rate[key] if now - t < WINDOW_SECONDS]
+        hits = [t for t in request.app.state.rate[identity] if now - t < WINDOW_SECONDS]
         if len(hits) >= RATE_LIMIT:
             return JSONResponse(status_code=429, content={"error": "rate_limit_exceeded"})
         hits.append(now)
-        request.app.state.rate[key] = hits
+        request.app.state.rate[identity] = hits
     return await call_next(request)
 
 
