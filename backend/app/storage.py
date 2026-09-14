@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Any, Iterator
 
 from .contracts import Alert, Event, Forecast, Observation, Signal
+from .outcomes import ForecastOutcome
 
 
 class RuntimeStore:
@@ -22,8 +23,10 @@ class RuntimeStore:
         CREATE TABLE IF NOT EXISTS signals (id TEXT PRIMARY KEY, payload TEXT NOT NULL);
         CREATE TABLE IF NOT EXISTS forecasts (id TEXT PRIMARY KEY, origin_time TEXT NOT NULL, payload TEXT NOT NULL);
         CREATE TABLE IF NOT EXISTS alerts (id TEXT PRIMARY KEY, payload TEXT NOT NULL);
+        CREATE TABLE IF NOT EXISTS outcomes (id INTEGER PRIMARY KEY AUTOINCREMENT, prediction_id TEXT NOT NULL, outcome_time TEXT NOT NULL, payload TEXT NOT NULL);
         CREATE INDEX IF NOT EXISTS idx_observations_event_time ON observations(event_time);
         CREATE INDEX IF NOT EXISTS idx_forecasts_origin_time ON forecasts(origin_time);
+        CREATE INDEX IF NOT EXISTS idx_outcomes_prediction_id ON outcomes(prediction_id);
         """)
         columns = {row[1] for row in self.db.execute("PRAGMA table_info(observations)")}
         if "publication_time" not in columns:
@@ -80,6 +83,9 @@ class RuntimeStore:
     def alert(self, item: Alert) -> None:
         self._insert("alerts", str(item.alert_id), "", asdict(item))
 
+    def outcome(self, item: ForecastOutcome) -> None:
+        self.db.execute("INSERT INTO outcomes(prediction_id,outcome_time,payload) VALUES(?,?,?)", (item.prediction_id, item.outcome_time.isoformat(), json.dumps(asdict(item), sort_keys=True, default=str)))
+
     def snapshot(self) -> dict[str, int]:
         return {
             "observations": self.db.execute("SELECT COUNT(*) FROM observations").fetchone()[0],
@@ -87,4 +93,5 @@ class RuntimeStore:
             "signals": self.db.execute("SELECT COUNT(*) FROM signals").fetchone()[0],
             "forecasts": self.db.execute("SELECT COUNT(*) FROM forecasts").fetchone()[0],
             "alerts": self.db.execute("SELECT COUNT(*) FROM alerts").fetchone()[0],
+            "outcomes": self.db.execute("SELECT COUNT(*) FROM outcomes").fetchone()[0],
         }
