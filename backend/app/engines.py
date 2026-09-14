@@ -41,13 +41,12 @@ class EventEngine:
 
 class SignalEngine:
     def from_state(self, event: Event, *, variable_id: str, value: float, baseline: float, trend: float, acceleration: float, volatility: float, provenance: tuple[str, ...]) -> Signal:
-        scale = max(abs(baseline), 1e-12)
-        z = (value - baseline) / max(volatility, 1e-12)
-        anomaly = min(1.0, abs(z) / 4.0)
         for item in (value, baseline, trend, acceleration, volatility):
             if not isfinite(item):
                 raise ValueError("signal inputs must be finite")
-        return Signal(str(uuid4()), event.event_id, variable_id, value, z, anomaly, trend, acceleration, volatility, provenance + event.provenance)
+        z = (value - baseline) / max(volatility, 1e-12)
+        anomaly = min(1.0, abs(z) / 4.0)
+        return Signal(str(uuid4()), event.event_id, variable_id, value, z, anomaly, trend, acceleration, volatility, tuple(dict.fromkeys(provenance + event.provenance)))
 
 
 class PatternEngine:
@@ -55,7 +54,6 @@ class PatternEngine:
         if not signals:
             raise ValueError("pattern detection requires signals")
         magnitudes = [s.anomaly_score for s in signals]
-        mean = sum(magnitudes) / len(magnitudes)
         spread = (max(magnitudes) - min(magnitudes)) if len(magnitudes) > 1 else 0.0
         coherence = max(0.0, 1.0 - spread)
         provenance = tuple(dict.fromkeys(p for s in signals for p in s.provenance))
@@ -64,6 +62,8 @@ class PatternEngine:
 
 class TrajectoryEngine:
     def build(self, pattern: Pattern, signals: list[Signal], *, regime: str) -> Trajectory:
+        if not signals:
+            raise ValueError("trajectory detection requires signals")
         trend = sum(s.trend for s in signals) / len(signals)
         acceleration = sum(s.acceleration for s in signals) / len(signals)
         persistence = min(1.0, sum(1 for s in signals if s.anomaly_score >= 0.5) / len(signals))
@@ -81,8 +81,8 @@ class TrajectoryEngine:
 
 
 class AlertEngine:
-    def build(self, trajectory: Trajectory, *, forecasts: tuple[str, ...] = ()) -> Alert:
+    def build(self, trajectory: Trajectory, *, event_ids: tuple[str, ...] = (), signal_ids: tuple[str, ...] = (), forecasts: tuple[str, ...] = ()) -> Alert:
         raw = min(1.0, max(0.0, 0.5 * trajectory.persistence + 0.3 * trajectory.cascade_score + 0.2 * trajectory.propagation))
         uncertainty = min(1.0, 1.0 - trajectory.persistence * trajectory.propagation)
         level = "CRITICAL" if raw >= 0.85 and uncertainty < 0.35 else "DANGER" if raw >= 0.70 else "WARNING" if raw >= 0.50 else "ATTENTION" if raw >= 0.30 else "BASELINE"
-        return Alert(str(uuid4()), level, raw, (f"trajectory={trajectory.direction}", f"regime={trajectory.regime}", f"cascade_score={trajectory.cascade_score:.4f}"), (), trajectory.provenance, forecasts, uncertainty, trajectory.provenance)
+        return Alert(str(uuid4()), level, raw, (f"trajectory={trajectory.direction}", f"regime={trajectory.regime}", f"cascade_score={trajectory.cascade_score:.4f}"), event_ids, signal_ids, forecasts, uncertainty, trajectory.provenance)
