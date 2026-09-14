@@ -98,18 +98,24 @@ class LongitudinalStateBuilder:
 
     @staticmethod
     def _regime(frame: pd.DataFrame) -> str:
-        if len(frame) < 8:
-            return "INSUFFICIENT_HISTORY"
-        values = frame["value"].to_numpy(dtype=float)
-        split = len(values) // 2
-        a, b = values[:split], values[split:]
-        if len(a) < 3 or len(b) < 3:
-            return "INSUFFICIENT_HISTORY"
-        std = float(np.std(values))
-        if not np.isfinite(std):
-            return "UNKNOWN"
-        mean_shift = abs(float(b.mean() - a.mean())) / (std + 1e-12)
-        variance_ratio = (float(np.var(b)) + 1e-12) / (float(np.var(a)) + 1e-12)
-        if mean_shift >= 1.5 or variance_ratio >= 3.0 or variance_ratio <= 1 / 3.0:
+        statuses: list[str] = []
+        for _, group in frame.groupby("variable", sort=True):
+            if len(group) < 8:
+                continue
+            values = group.sort_values("event_time")["value"].to_numpy(dtype=float)
+            split = len(values) // 2
+            a, b = values[:split], values[split:]
+            if len(a) < 3 or len(b) < 3:
+                continue
+            std = float(np.std(values))
+            if not np.isfinite(std):
+                statuses.append("UNKNOWN")
+                continue
+            mean_shift = abs(float(b.mean() - a.mean())) / (std + 1e-12)
+            variance_ratio = (float(np.var(b)) + 1e-12) / (float(np.var(a)) + 1e-12)
+            statuses.append("SHIFT_DETECTED" if mean_shift >= 1.5 or variance_ratio >= 3.0 or variance_ratio <= 1 / 3.0 else "STABLE")
+        if "SHIFT_DETECTED" in statuses:
             return "SHIFT_DETECTED"
-        return "STABLE"
+        if "UNKNOWN" in statuses:
+            return "UNKNOWN"
+        return "STABLE" if statuses else "INSUFFICIENT_HISTORY"
