@@ -9,6 +9,7 @@ from contextlib import asynccontextmanager
 from typing import AsyncIterator
 
 from fastapi import FastAPI, HTTPException, Request
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 from .contracts import Observation
@@ -86,12 +87,12 @@ async def request_limits(request: Request, call_next):
     if request.method in {"POST", "PUT", "PATCH"}:
         body = await request.body()
         if len(body) > MAX_BODY_BYTES:
-            raise HTTPException(413, "request too large")
+            return JSONResponse(status_code=413, content={"error": "request_too_large"})
         key = request.headers.get("X-SERPIENTE-API-Key", "")
         now = time.monotonic()
         hits = [t for t in request.app.state.rate[key] if now - t < WINDOW_SECONDS]
         if len(hits) >= RATE_LIMIT:
-            raise HTTPException(429, "rate limit exceeded")
+            return JSONResponse(status_code=429, content={"error": "rate_limit_exceeded"})
         hits.append(now)
         request.app.state.rate[key] = hits
     return await call_next(request)
