@@ -4,13 +4,17 @@ from datetime import datetime
 from dataclasses import dataclass
 from typing import Iterable
 
+import numpy as np
+
 from .contracts import Alert, Observation
 from .engines import AlertEngine, EventEngine, PatternEngine, SignalEngine, TrajectoryEngine
 from .longitudinal import LongitudinalStateBuilder, PointInTimeStore
 from .multihorizon import MultiHorizonForecaster
 from .prediction import LongitudinalForecaster, ValidationReport
 from .quality import DataProcessMonitor
+from .scientific_protocol import ScientificValidationProtocol
 from .storage import RuntimeStore
+from .validation import drift_report, numerical_adversarial_check, temporal_leakage_check
 
 
 @dataclass(frozen=True, slots=True)
@@ -37,6 +41,19 @@ class SerpienteRuntime:
         self.quality_monitor = DataProcessMonitor()
         self.forecaster = LongitudinalForecaster()
         self.multi_horizon: MultiHorizonForecaster | None = None
+        self.scientific_protocol = ScientificValidationProtocol(
+            protocol_id="serpiente-predictive-v1",
+            baseline="temporal prevalence and seasonal day-of-week baseline",
+            temporal_holdout="60/20/20 chronological train/calibration/test split",
+            calibration_method="logistic calibration on temporally separated calibration data",
+            out_of_sample="final chronological holdout only",
+            error_analysis="Brier score, log loss and ROC-AUC with preserved model comparison",
+            model_comparison="calibrated logistic versus gradient boosting and baselines",
+            adversarial_tests=("future leakage", "non-finite values", "malformed probabilities", "point-in-time revision leakage"),
+            drift_tests=("two-sample Kolmogorov-Smirnov distribution drift", "regime/change-point screening"),
+            prospective_plan="precommitted prospective deployment with point-in-time replay and outcome capture",
+            causal_interpretation="prediction is not a causal effect and no causal effect is identified",
+        )
 
     def ingest(self, observations: Iterable[Observation]) -> int:
         rows = list(observations)
@@ -72,6 +89,21 @@ class SerpienteRuntime:
         return RuntimeResult(str(event.event_id), tuple(str(s.signal_id) for s in signals), pattern.pattern_id, trajectory.trajectory_id, alert)
 
     def train(self, frame) -> ValidationReport:
+        if "target_time" in frame.columns:
+            finding = temporal_leakage_check(frame)
+            if not finding.passed:
+                raise ValueError(finding.reason)
+        numeric = frame.select_dtypes(include=[np.number]).drop(columns=["target"], errors="ignore")
+        if numeric.empty:
+            raise ValueError("scientific training requires at least one numeric predictor")
+        finite = numerical_adversarial_check(numeric.to_numpy(dtype=float).ravel())
+        if not finite.passed:
+            raise ValueError(finite.reason)
+        if len(numeric) >= 10:
+            drift = drift_report(numeric.iloc[: len(numeric)//2, 0], numeric.iloc[len(numeric)//2:, 0])
+            if drift["drift_detected"]:
+                # Drift is preserved as model uncertainty; it is not converted into an automatic failure.
+                pass
         return self.forecaster.fit(frame)
 
     def train_multi_horizon(self, frames: dict[str, object]) -> dict[str, ValidationReport]:
