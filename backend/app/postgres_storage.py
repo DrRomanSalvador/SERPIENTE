@@ -60,17 +60,17 @@ class PostgresRuntimeStore:
             cur.execute("INSERT INTO serpiente_outcomes(prediction_id,outcome_time,payload) VALUES (%s,%s,%s::jsonb)", (item.prediction_id, item.outcome_time, self._json(asdict(item))))
 
     def snapshot(self) -> dict[str, int]:
-        tables = {
-            "observations": "serpiente_observations",
-            "events": "serpiente_events",
-            "signals": "serpiente_signals",
-            "forecasts": "serpiente_forecasts",
-            "alerts": "serpiente_alerts",
-            "outcomes": "serpiente_outcomes",
-        }
+        queries = (
+            ("observations", "SELECT COUNT(*) FROM serpiente_observations"),
+            ("events", "SELECT COUNT(*) FROM serpiente_events"),
+            ("signals", "SELECT COUNT(*) FROM serpiente_signals"),
+            ("forecasts", "SELECT COUNT(*) FROM serpiente_forecasts"),
+            ("alerts", "SELECT COUNT(*) FROM serpiente_alerts"),
+            ("outcomes", "SELECT COUNT(*) FROM serpiente_outcomes"),
+        )
         with self.db.cursor() as cur:
             result = {}
-            for key, table in tables.items():
-                cur.execute(f"SELECT COUNT(*) FROM {table}")
+            for key, query in queries:
+                cur.execute(query)
                 result[key] = cur.fetchone()[0]
         return result
