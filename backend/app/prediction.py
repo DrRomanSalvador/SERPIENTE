@@ -36,7 +36,7 @@ class ValidationReport:
 
 
 class LongitudinalForecaster:
-    """Binary longitudinal forecaster with temporal holdout, monotonic calibration and ensemble disagreement."""
+    """Binary longitudinal forecaster with temporal holdout, monotonic calibration and model disagreement."""
 
     def __init__(self, *, random_state: int = 17) -> None:
         self.random_state = random_state
@@ -93,14 +93,15 @@ class LongitudinalForecaster:
         self._calibrator.fit(cal_raw, y_cal.to_numpy())
         cal_times = pd.to_datetime(frame.iloc[train_end:cal_end]["time"], utc=True)
         self._seasonal_rates = {int(day): float(y_cal.to_numpy()[cal_times.dt.dayofweek.to_numpy() == day].mean()) for day in range(7) if (cal_times.dt.dayofweek == day).any()}
-        logistic = self.predict_probability(X_test)
-        tree = np.clip(self._secondary.predict_proba(X_test)[:, 1], 1e-8, 1 - 1e-8)
+        logistic, tree = self._predict_pair(X_test)
+        ensemble = (logistic + tree) / 2.0
         prevalence = np.full(len(y_test), float(y_train.mean()))
         test_times = pd.to_datetime(frame.iloc[cal_end:]["time"], utc=True)
         seasonal = np.array([self._seasonal_rates.get(int(day), float(y_train.mean())) for day in test_times.dt.dayofweek], dtype=float)
         scores = [
             ModelScore("longitudinal_logistic_isotonic", float(brier_score_loss(y_test, logistic)), float(log_loss(y_test, logistic, labels=[0, 1])), float(roc_auc_score(y_test, logistic))),
             ModelScore("longitudinal_gradient_boosting", float(brier_score_loss(y_test, tree)), float(log_loss(y_test, tree, labels=[0, 1])), float(roc_auc_score(y_test, tree))),
+            ModelScore("longitudinal_ensemble", float(brier_score_loss(y_test, ensemble)), float(log_loss(y_test, ensemble, labels=[0, 1])), float(roc_auc_score(y_test, ensemble))),
             ModelScore("temporal_prevalence_baseline", float(brier_score_loss(y_test, prevalence)), float(log_loss(y_test, prevalence, labels=[0, 1])), None),
             ModelScore("seasonal_dayofweek_baseline", float(brier_score_loss(y_test, seasonal)), float(log_loss(y_test, seasonal, labels=[0, 1])), None),
         ]
