@@ -32,7 +32,7 @@ class Observation:
     acquisition_time: datetime
     source_version: str
     revision: int
-    value: float
+    value: float | None
     provenance: tuple[str, ...]
     quality: float = 1.0
     missing: bool = False
@@ -47,7 +47,13 @@ class Observation:
             raise ValueError("publication_time cannot be after acquisition_time")
         if self.revision < 0:
             raise ValueError("revision must be non-negative")
-        _finite(self.value, "value")
+        if self.missing:
+            if self.value is not None:
+                raise ValueError("missing observations must not carry a numeric value")
+        elif self.value is None:
+            raise ValueError("non-missing observations require a value")
+        else:
+            _finite(self.value, "value")
         q = _finite(self.quality, "quality")
         if not 0.0 <= q <= 1.0:
             raise ValueError("quality must be in [0,1]")
@@ -134,8 +140,8 @@ class Forecast:
         values = (self.probability, self.lower, self.upper, self.aleatoric, self.epistemic, self.measurement, self.parameter, self.structural, self.model_disagreement)
         if not all(isfinite(v) for v in values):
             raise ValueError("forecast values must be finite")
-        if not 0 <= self.probability <= 1:
-            raise ValueError("probability must be in [0,1]")
+        if not 0 <= self.probability <= 1 or not 0 <= self.model_disagreement <= 1:
+            raise ValueError("probability and model disagreement must be in [0,1]")
         if self.lower > self.upper or not self.provenance or not self.point_in_time_fingerprint:
             raise ValueError("invalid forecast interval, provenance or point-in-time fingerprint")
 
