@@ -8,7 +8,7 @@ from collections import defaultdict
 from contextlib import asynccontextmanager
 from typing import AsyncIterator
 
-from fastapi import FastAPI, Header, HTTPException, Request
+from fastapi import FastAPI, HTTPException, Request
 from pydantic import BaseModel, Field
 
 from .contracts import Observation
@@ -53,9 +53,9 @@ class ObservationInput(BaseModel):
     acquisition_time: str
     source_version: str = Field(min_length=1, max_length=200)
     revision: int = Field(ge=0)
-    value: float
+    value: float | None = Field(default=None, allow_inf_nan=False)
     provenance: list[str] = Field(min_length=1, max_length=20)
-    quality: float = Field(default=1.0, ge=0.0, le=1.0)
+    quality: float = Field(default=1.0, ge=0.0, le=1.0, allow_inf_nan=False)
     missing: bool = False
     transformation_lineage: list[str] = Field(default_factory=list, max_length=20)
 
@@ -84,8 +84,8 @@ app = FastAPI(title="SERPIENTE", version="0.1.0", lifespan=lifespan)
 @app.middleware("http")
 async def request_limits(request: Request, call_next):
     if request.method in {"POST", "PUT", "PATCH"}:
-        length = request.headers.get("content-length")
-        if length and int(length) > MAX_BODY_BYTES:
+        body = await request.body()
+        if len(body) > MAX_BODY_BYTES:
             raise HTTPException(413, "request too large")
         key = request.headers.get("X-SERPIENTE-API-Key", "")
         now = time.monotonic()
@@ -120,4 +120,9 @@ async def process(request: Request, payload: ProcessInput):
     _role(request, {"ANALYST"})
     from datetime import datetime
     result = request.app.state.runtime.process(as_of=datetime.fromisoformat(payload.as_of), geography=payload.geography, domain=payload.domain, event_type=payload.event_type)
-    return {"event_id": result.event_id, "signal_ids": result.signal_ids, "pattern_id": result.pattern_id, "trajectory_id": result.trajectory_id, "alert": result.alert.__dict__ if hasattr(result.alert, "__dict__") else {"alert_id": str(result.alert.alert_id), "level": result.alert.level, "score": result.alert.score, "uncertainty": result.alert.uncertainty, "provenance": result.alert.provenance}}
+    return {"event_id": result.event_id, "signal_ids": result.signal_ids, "pattern_id": result.pattern_id, "trajectory_id": result.trajectory_id, "alert": {"alert_id": str(result.alert.alert_id), "level": result.alert.level, "score": result.alert.score, "uncertainty": result.alert.uncertainty, "provenance": result.alert.provenance}}
+
+
+def main() -> None:
+    import uvicorn
+    uvicorn.run("app.main:app", host=os.getenv("SERPIENTE_HOST", "0.0.0.0"), port=int(os.getenv("SERPIENTE_PORT", "8001")))
