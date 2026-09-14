@@ -98,6 +98,7 @@ class Event:
 class Signal:
     signal_id: UUID | str
     event_id: UUID | str
+    domain: str
     variable_id: str
     value: float
     z_score: float
@@ -110,6 +111,8 @@ class Signal:
     def __post_init__(self) -> None:
         for name, value in (("value", self.value), ("z_score", self.z_score), ("anomaly_score", self.anomaly_score), ("trend", self.trend), ("acceleration", self.acceleration), ("volatility", self.volatility)):
             _finite(value, name)
+        if not self.domain or not self.variable_id:
+            raise ValueError("signal domain and variable are required")
         if not 0 <= self.anomaly_score <= 1:
             raise ValueError("anomaly_score must be in [0,1]")
         if not self.provenance:
