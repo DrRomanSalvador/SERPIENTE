@@ -6,6 +6,7 @@ from typing import Iterable
 
 import numpy as np
 import pandas as pd
+from scipy.stats import ks_2samp
 from sklearn.metrics import brier_score_loss, log_loss
 
 
@@ -43,6 +44,17 @@ def calibration_report(y_true: Iterable[int], probabilities: Iterable[float]) ->
     if not np.isfinite(p).all() or ((p < 0) | (p > 1)).any():
         raise ValueError("probabilities must be finite and in [0,1]")
     return {"brier": float(brier_score_loss(y, p)), "logloss": float(log_loss(y, p, labels=[0, 1])), "mean_probability": float(p.mean()), "event_rate": float(y.mean())}
+
+
+def drift_report(reference: Iterable[float], current: Iterable[float], *, alpha: float = 0.01) -> dict[str, float | bool]:
+    ref = np.asarray(list(reference), dtype=float)
+    cur = np.asarray(list(current), dtype=float)
+    if len(ref) < 5 or len(cur) < 5 or not np.isfinite(ref).all() or not np.isfinite(cur).all():
+        raise ValueError("drift samples must contain at least five finite observations each")
+    if not 0 < alpha < 1:
+        raise ValueError("alpha must be in (0,1)")
+    result = ks_2samp(ref, cur, alternative="two-sided", mode="auto")
+    return {"ks_statistic": float(result.statistic), "p_value": float(result.pvalue), "drift_detected": bool(result.pvalue < alpha), "alpha": float(alpha)}
 
 
 def multidomain_incremental_value(baselines: dict[str, dict[str, float]]) -> dict[str, object]:
