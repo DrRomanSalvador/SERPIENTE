@@ -145,7 +145,7 @@ async def record_outcome(request: Request, payload: OutcomeInput):
     outcome = ForecastOutcome(payload.prediction_id, origin, payload.outcome_time, payload.target, payload.observed, float(stored["probability"]), stored["horizon"], tuple(payload.provenance))
     with request.app.state.runtime.store.transaction():
         request.app.state.runtime.store.outcome(outcome)
-    return {"prediction_id": outcome.prediction_id, "brier_error": outcome.brier_error, "log_loss_error": outcome.log_loss_error, "outcome_time": outcome.outcome_time.astimezone(timezone.utc).isoformat()}
+    return {"prediction_id": outcome.prediction_id, "brier_error": round(outcome.brier_error, 12), "log_loss_error": round(outcome.log_loss_error, 12), "outcome_time": outcome.outcome_time.astimezone(timezone.utc).isoformat()}
 
 
 def main() -> None:
