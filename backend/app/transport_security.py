@@ -22,4 +22,9 @@ def sign_prediction_transport(payload: dict[str, object], *, secret: str, timest
     return {"timestamp": timestamp, "nonce": nonce, "signature": signature}
 
 
-__all__ = ["canonical_transport_message", "sign_prediction_transport"]
+def authenticated_prediction_payload(payload: dict[str, object], *, secret: str, timestamp: str | None = None, nonce: str | None = None) -> dict[str, object]:
+    transport = sign_prediction_transport(payload, secret=secret, timestamp=timestamp, nonce=nonce)
+    return {**payload, "_transport": transport}
+
+
+__all__ = ["canonical_transport_message", "sign_prediction_transport", "authenticated_prediction_payload"]
