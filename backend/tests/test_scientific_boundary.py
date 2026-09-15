@@ -1,6 +1,6 @@
 from datetime import datetime, timezone
 
-from app.scientific_boundary import make_scientific_prediction_payload, validate_ceutia_message
+from app.scientific_boundary import make_scientific_prediction_payload, validate_ceutia_feedback, validate_ceutia_message
 
 
 def _payload(**overrides):
@@ -40,3 +40,10 @@ def test_tampered_integrity_is_rejected():
     result = validate_ceutia_message(_payload(probability=0.71))
     assert not result.compatible
     assert "integrity_hash_mismatch" in result.reasons
+
+
+def test_reverse_decision_feedback_requires_temporal_order_and_provenance():
+    ok, reason = validate_ceutia_feedback({"decision_id": "d1", "decision_time": "2026-09-15T00:00:00+00:00", "action_id": "a1", "intervention_applied": True, "outcome_id": "o1", "outcome_time": "2026-09-16T00:00:00+00:00", "provenance": ["decision:d1"]})
+    assert ok and reason == "feedback_compatible"
+    ok, reason = validate_ceutia_feedback({"decision_id": "d1", "decision_time": "2026-09-15T00:00:00+00:00", "action_id": "a1", "intervention_applied": True, "outcome_id": "o1", "outcome_time": "2026-09-14T00:00:00+00:00", "provenance": ["decision:d1"]})
+    assert not ok and reason == "feedback_temporal_order_invalid"
