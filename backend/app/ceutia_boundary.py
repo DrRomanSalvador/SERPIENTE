@@ -7,6 +7,7 @@ import json
 from typing import Any
 
 from .contracts import Alert, Forecast
+from .scientific_boundary import make_scientific_prediction_payload
 
 
 @dataclass(frozen=True, slots=True)
@@ -55,4 +56,20 @@ def prediction_to_ceutia(forecast: Forecast, alerts: tuple[Alert, ...] = ()) -> 
         provenance=forecast.provenance,
         point_in_time_fingerprint=forecast.point_in_time_fingerprint,
         alert_ids=tuple(str(a.alert_id) for a in alerts),
+    )
+
+
+def prediction_to_scientific_ceutia(forecast: Forecast, *, available_at: datetime, model_id: str, method_id: str, method_version: str, training_window: str, reference_class: str, ood_state: str, causal_status: str, calibration_status: str, evidence_level: str, source_independence: str, configuration_hash: str, code_revision: str) -> dict[str, Any]:
+    """Emit the canonical scientific boundary message with no implicit defaults."""
+    return make_scientific_prediction_payload(
+        prediction_id=str(forecast.forecast_id), origin_time=forecast.origin_time, available_at=available_at,
+        horizon=forecast.horizon, target=forecast.target, probability=forecast.probability,
+        lower=forecast.lower, upper=forecast.upper,
+        uncertainty={"aleatoric": forecast.aleatoric, "epistemic": forecast.epistemic, "measurement": forecast.measurement, "parameter": forecast.parameter, "structural": forecast.structural},
+        model_disagreement=forecast.model_disagreement, model_id=model_id, method_id=method_id,
+        method_version=method_version, training_window=training_window, reference_class=reference_class,
+        ood_state=ood_state, causal_status=causal_status, calibration_status=calibration_status,
+        evidence_level=evidence_level, source_independence=source_independence, provenance=forecast.provenance,
+        configuration_hash=configuration_hash, code_revision=code_revision,
+        point_in_time_fingerprint=forecast.point_in_time_fingerprint,
     )
