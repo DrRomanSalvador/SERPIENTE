@@ -36,6 +36,10 @@ def _metadata() -> ScientificPredictionMetadata:
     )
 
 
+def test_forecast_producer_uses_ceutia_canonical_contract_hash():
+    assert CANONICAL_CONTRACT_HASH == "672dfa6b60d2e8c0854a024e83acf6b23eed44f2cd3293708aee533d7a9dc1f0"
+
+
 def test_forecast_producer_emits_canonical_contract():
     payload = forecast_to_scientific_prediction(
         _forecast(), available_at=datetime(2026, 9, 15, 5, 1, tzinfo=timezone.utc), metadata=_metadata()
