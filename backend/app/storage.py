@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import sqlite3
+import threading
 from contextlib import contextmanager
 from dataclasses import asdict
 from pathlib import Path
@@ -14,7 +15,8 @@ from .outcomes import ForecastOutcome
 class RuntimeStore:
     def __init__(self, path: str | Path) -> None:
         self.path = str(path)
-        self.db = sqlite3.connect(self.path, isolation_level=None)
+        self._lock = threading.RLock()
+        self.db = sqlite3.connect(self.path, isolation_level=None, check_same_thread=False)
         self.db.execute("PRAGMA journal_mode=WAL")
         self.db.execute("PRAGMA foreign_keys=ON")
         self.db.executescript("""
@@ -38,20 +40,22 @@ class RuntimeStore:
 
     @contextmanager
     def transaction(self) -> Iterator[None]:
-        if self.db.in_transaction:
-            yield
-            return
-        self.db.execute("BEGIN IMMEDIATE")
-        try:
-            yield
-        except Exception:
-            self.db.rollback()
-            raise
-        else:
-            self.db.commit()
+        with self._lock:
+            if self.db.in_transaction:
+                yield
+                return
+            self.db.execute("BEGIN IMMEDIATE")
+            try:
+                yield
+            except Exception:
+                self.db.rollback()
+                raise
+            else:
+                self.db.commit()
 
     def close(self) -> None:
-        self.db.close()
+        with self._lock:
+            self.db.close()
 
     def _insert(self, table: str, key: str, timestamp: str, payload: dict[str, Any]) -> None:
         encoded = json.dumps(payload, sort_keys=True, default=str)
