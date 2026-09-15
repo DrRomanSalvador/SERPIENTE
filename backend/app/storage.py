@@ -95,6 +95,9 @@ class RuntimeStore:
 
     def outcome(self, item: ForecastOutcome) -> None:
         with self._lock:
+            forecast_exists = self.db.execute("SELECT 1 FROM forecasts WHERE id = ?", (item.prediction_id,)).fetchone()
+            if forecast_exists is None:
+                raise ValueError("forecast must exist before recording its outcome")
             self.db.execute("INSERT INTO outcomes(prediction_id,outcome_time,payload) VALUES(?,?,?)", (item.prediction_id, item.outcome_time.isoformat(), json.dumps(asdict(item), sort_keys=True, default=str)))
 
     def snapshot(self) -> dict[str, int]:
