@@ -24,3 +24,17 @@ def test_postgres_runtime_roundtrip_and_foreign_key():
     assert store.snapshot()["forecasts"] >= 1
     assert store.snapshot()["outcomes"] >= 1
     store.close()
+
+
+@pytest.mark.skipif(not os.getenv("SERPIENTE_TEST_DATABASE_URL"), reason="PostgreSQL integration environment not configured")
+def test_postgres_runtime_rejects_orphan_forecast_outcome():
+    store = PostgresRuntimeStore(os.environ["SERPIENTE_TEST_DATABASE_URL"])
+    outcome = ForecastOutcome(
+        "missing-forecast", datetime(2026, 1, 1, tzinfo=timezone.utc),
+        datetime(2026, 1, 2, tzinfo=timezone.utc), "risk", 1, 0.8, "24h", ("official",)
+    )
+    try:
+        with pytest.raises(ValueError, match="forecast must exist"):
+            store.outcome(outcome)
+    finally:
+        store.close()
