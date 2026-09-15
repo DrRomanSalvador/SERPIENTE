@@ -30,5 +30,5 @@ def test_authenticated_prediction_requires_secret() -> None:
 
 
 def test_authenticated_prediction_rejects_non_string_nonce_at_boundary() -> None:
-    with pytest.raises(TypeError):
+    with pytest.raises(ValueError, match="nonce"):
         build_authenticated_prediction(_payload(), secret="shared-secret", nonce=object())  # type: ignore[arg-type]
