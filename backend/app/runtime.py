@@ -15,6 +15,7 @@ from .polling import PollJob, SourcePoller
 from .prediction import LongitudinalForecaster, ValidationReport
 from .quality import DataProcessMonitor
 from .scientific_protocol import ScientificValidationProtocol
+from .scientific_boundary import validate_ceutia_feedback, make_scientific_prediction_payload
 from .storage import RuntimeStore
 from .supervised import LongitudinalSupervisedFrameBuilder
 from .validation import drift_report, numerical_adversarial_check, temporal_leakage_check
@@ -143,3 +144,21 @@ class SerpienteRuntime:
                 for forecast in forecasts:
                     self.store.forecast(forecast)
         return forecasts
+
+    def emit_scientific_prediction(self, forecast, *, available_at: datetime, model_id: str, method_id: str, method_version: str, training_window: str, reference_class: str, ood_state: str, causal_status: str, calibration_status: str, evidence_level: str, source_independence: str, configuration_hash: str, code_revision: str) -> dict:
+        """Runtime producer for the canonical CeutIA scientific boundary."""
+        payload = make_scientific_prediction_payload(
+            prediction_id=str(forecast.forecast_id), origin_time=forecast.origin_time, available_at=available_at,
+            horizon=forecast.horizon, target=forecast.target, probability=forecast.probability, lower=forecast.lower, upper=forecast.upper,
+            uncertainty={"aleatoric": forecast.aleatoric, "epistemic": forecast.epistemic, "measurement": forecast.measurement, "parameter": forecast.parameter, "structural": forecast.structural},
+            model_disagreement=forecast.model_disagreement, model_id=model_id, method_id=method_id, method_version=method_version,
+            training_window=training_window, reference_class=reference_class, ood_state=ood_state, causal_status=causal_status,
+            calibration_status=calibration_status, evidence_level=evidence_level, source_independence=source_independence,
+            provenance=forecast.provenance, configuration_hash=configuration_hash, code_revision=code_revision,
+            point_in_time_fingerprint=forecast.point_in_time_fingerprint,
+        )
+        return payload
+
+    def consume_ceutia_feedback(self, payload: dict) -> tuple[bool, str]:
+        """Validate the reverse decision -> intervention -> outcome boundary."""
+        return validate_ceutia_feedback(payload)
