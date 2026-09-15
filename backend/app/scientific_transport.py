@@ -14,8 +14,10 @@ TRANSPORT_VERSION = "1"
 def canonical_transport_message(
     payload: dict[str, Any], *, timestamp: str, nonce: str
 ) -> bytes:
-    if not timestamp or not nonce:
-        raise ValueError("transport timestamp and nonce are required")
+    if not isinstance(timestamp, str) or not timestamp:
+        raise ValueError("transport timestamp is required and must be a string")
+    if not isinstance(nonce, str) or not nonce:
+        raise ValueError("transport nonce is required and must be a string")
     canonical = json.dumps(
         payload,
         sort_keys=True,
