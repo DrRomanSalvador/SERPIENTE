@@ -57,6 +57,9 @@ class PostgresRuntimeStore:
 
     def outcome(self, item: ForecastOutcome) -> None:
         with self.db.cursor() as cur:
+            cur.execute("SELECT 1 FROM serpiente_forecasts WHERE id = %s", (item.prediction_id,))
+            if cur.fetchone() is None:
+                raise ValueError("forecast must exist before recording its outcome")
             cur.execute("INSERT INTO serpiente_outcomes(prediction_id,outcome_time,payload) VALUES (%s,%s,%s::jsonb)", (item.prediction_id, item.outcome_time, self._json(asdict(item))))
 
     def snapshot(self) -> dict[str, int]:
