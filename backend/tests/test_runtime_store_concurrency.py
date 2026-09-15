@@ -1,7 +1,10 @@
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta, timezone
 
-from app.contracts import Observation
+import pytest
+
+from app.contracts import Forecast, Observation
+from app.outcomes import ForecastOutcome
 from app.storage import RuntimeStore
 
 
@@ -42,5 +45,37 @@ def test_runtime_store_serializes_shared_connection_reads_and_writes(tmp_path):
                 future.result()
 
         assert store.snapshot()["observations"] == len(observations)
+    finally:
+        store.close()
+
+
+def test_runtime_store_rejects_orphan_forecast_outcome(tmp_path):
+    store = RuntimeStore(tmp_path / "outcome-integrity.sqlite")
+    outcome = ForecastOutcome(
+        "missing-forecast",
+        datetime(2026, 1, 1, tzinfo=timezone.utc),
+        datetime(2026, 1, 2, tzinfo=timezone.utc),
+        "risk",
+        1,
+        0.8,
+        "24h",
+        ("official:outcome",),
+    )
+    try:
+        with pytest.raises(ValueError, match="forecast must exist"):
+            store.outcome(outcome)
+    finally:
+        store.close()
+
+
+def test_runtime_store_accepts_outcome_for_existing_forecast(tmp_path):
+    store = RuntimeStore(tmp_path / "outcome-integrity-valid.sqlite")
+    now = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    forecast = Forecast("forecast-1", now, "24h", "risk", 0.8, 0.4, 1.0, 0.2, 0.1, 0.0, 0.1, 0.2, 0.0, "STABLE", ("official",), "a" * 64)
+    outcome = ForecastOutcome("forecast-1", now, now + timedelta(days=1), "risk", 1, 0.8, "24h", ("official:outcome",))
+    try:
+        store.forecast(forecast)
+        store.outcome(outcome)
+        assert store.snapshot()["outcomes"] == 1
     finally:
         store.close()
