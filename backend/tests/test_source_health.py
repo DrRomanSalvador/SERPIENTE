@@ -1,7 +1,5 @@
 from datetime import datetime, timezone
 
-import pytest
-
 from app.source_health import SourceHealthMonitor, schema_fingerprint
 
 
@@ -52,10 +50,8 @@ def test_blocked_schema_is_explicit_and_preserved():
     assert monitor.latest("source", "dataset") == blocked
 
 
-def test_invalid_health_status_fails_closed():
+def test_first_source_failure_is_explicit():
     monitor = SourceHealthMonitor()
-    with pytest.raises(ValueError):
-        monitor.record_failure(source_id="source", dataset_id="dataset", error="timeout")
-    # A failed first observation is still represented with explicit unknown fingerprints.
     health = monitor.record_failure(source_id="source", dataset_id="dataset", error="timeout")
     assert health.status == "FAILED"
+    assert health.error == "timeout"
