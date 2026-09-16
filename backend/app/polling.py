@@ -42,6 +42,7 @@ class SourcePoller:
                 observed_at=self.now(),
             )
             if self.last_health.schema_changed:
+                self.last_health = self.health_monitor.record_blocked_schema(self.last_health, error="source schema changed; mapper execution is blocked")
                 raise ValueError("source schema changed; mapper execution is blocked")
             raw = json.loads(payload)
             rows = raw if isinstance(raw, list) else raw.get("observations", [])
@@ -56,12 +57,13 @@ class SourcePoller:
                 mapped.append(mapper.map_row(row, acquisition_time=acquired, publication_time=publication, provenance=provenance, source_version=version))
             return mapped
         except Exception as exc:
-            self.last_health = self.health_monitor.record_failure(
-                source_id=job.source_id,
-                dataset_id=job.dataset_id,
-                error=str(exc),
-                observed_at=self.now(),
-            )
+            if self.last_health is None or self.last_health.status != "BLOCKED_SCHEMA":
+                self.last_health = self.health_monitor.record_failure(
+                    source_id=job.source_id,
+                    dataset_id=job.dataset_id,
+                    error=str(exc),
+                    observed_at=self.now(),
+                )
             raise
 
     def run(self, jobs: list[tuple[PollJob, ObservationMapper]], sink: Callable[[list[Observation]], Any], *, cycles: int = 1) -> None:
