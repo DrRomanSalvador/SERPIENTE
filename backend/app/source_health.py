@@ -25,14 +25,14 @@ class SourceHealth:
     def __post_init__(self) -> None:
         if self.observed_at.tzinfo is None or self.observed_at.utcoffset() is None:
             raise ValueError("observed_at must be timezone-aware")
-        if self.status not in {"OK", "FAILED"}:
+        if self.status not in {"OK", "FAILED", "BLOCKED_SCHEMA"}:
             raise ValueError("unsupported source health status")
         if not self.source_id or not self.dataset_id:
             raise ValueError("source and dataset identity are required")
         if len(self.content_fingerprint) != 64 or len(self.schema_fingerprint) != 64:
             raise ValueError("source fingerprints must be SHA-256 digests")
-        if self.status == "FAILED" and not self.error:
-            raise ValueError("failed source health requires an error")
+        if self.status in {"FAILED", "BLOCKED_SCHEMA"} and not self.error:
+            raise ValueError("failed or blocked source health requires an error")
 
 
 def _shape(value: Any) -> Any:
@@ -63,13 +63,7 @@ def schema_fingerprint(payload: bytes | str) -> str:
 
 
 class SourceHealthMonitor:
-    """Tracks source-process integrity separately from observation validity.
-
-    A changed content fingerprint is not itself a revision claim; revision status
-    is based on the source version advertised by the publisher. Schema changes are
-    detected independently so a publisher change cannot silently alter the
-    scientific interpretation of an existing mapper.
-    """
+    """Tracks source-process integrity separately from observation validity."""
 
     def __init__(self) -> None:
         self._last: dict[tuple[str, str], SourceHealth] = {}
@@ -94,6 +88,22 @@ class SourceHealthMonitor:
         self._last[key] = health
         return health
 
+    def record_blocked_schema(self, health: SourceHealth, *, error: str) -> SourceHealth:
+        blocked = SourceHealth(
+            source_id=health.source_id,
+            dataset_id=health.dataset_id,
+            observed_at=health.observed_at,
+            status="BLOCKED_SCHEMA",
+            source_version=health.source_version,
+            content_fingerprint=health.content_fingerprint,
+            schema_fingerprint=health.schema_fingerprint,
+            revision_changed=health.revision_changed,
+            schema_changed=True,
+            error=error[:1000],
+        )
+        self._last[(health.source_id, health.dataset_id)] = blocked
+        return blocked
+
     def record_failure(self, *, source_id: str, dataset_id: str, error: str, observed_at: datetime | None = None) -> SourceHealth:
         observed_at = observed_at or datetime.now(timezone.utc)
         previous = self._last.get((source_id, dataset_id))
@@ -106,7 +116,7 @@ class SourceHealthMonitor:
             content_fingerprint=previous.content_fingerprint if previous else sha256(b"").hexdigest(),
             schema_fingerprint=previous.schema_fingerprint if previous else sha256(b"").hexdigest(),
             revision_changed=False,
-            schema_changed=False,
+            schema_changed=previous.schema_changed if previous else False,
             error=error[:1000],
         )
         self._last[(source_id, dataset_id)] = health
