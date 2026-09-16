@@ -57,6 +57,9 @@ class LongitudinalForecaster:
             raise ValueError("training frame must be strictly ordered with unique forecast origins")
         if frame["target"].isna().any():
             raise ValueError("target cannot be missing")
+        target_values = set(pd.unique(frame["target"]))
+        if not target_values.issubset({0, 1}):
+            raise ValueError("target must be binary with values in {0,1}")
 
     def fit(self, frame: pd.DataFrame) -> ValidationReport:
         self._check_frame(frame)
@@ -136,5 +139,5 @@ class LongitudinalForecaster:
         parameter = min(1.0, 1.0 / np.sqrt(max(1, self._calibration_rows)))
         structural = min(1.0, (0.6 if regime != "STABLE" else 0.0) + disagreement)
         measurement = 0.0
-        total = min(1.0, 0.25 * aleatoric + epistemic + parameter + structural + measurement + disagreement)
+        total = min(1.0, 0.25 * aleatoric + epistemic + parameter + structural + disagreement)
         return Forecast(str(sha256(f"{origin.isoformat()}:{target}:{horizon}:{point_in_time_fingerprint}".encode()).hexdigest()), origin, horizon, target, p, max(0.0, p - total), min(1.0, p + total), aleatoric, epistemic, measurement, parameter, structural, disagreement, regime, provenance, point_in_time_fingerprint)
