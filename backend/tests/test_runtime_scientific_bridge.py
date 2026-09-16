@@ -1,7 +1,5 @@
 from datetime import datetime, timezone
 
-import pytest
-
 from app.contracts import Forecast, Observation, Signal
 from app.runtime_scientific_bridge import quantitative_audit_from_runtime, work_from_runtime_object
 
@@ -29,6 +27,7 @@ def test_observation_generates_executable_scientific_work_without_truth_promotio
     assert len(work) == 5
     assert all("causal effect" in item.capability_not_authorized for item in work)
     assert all("denominator" in " ".join(item.alternative_explanations).lower() or "denominator" in " ".join(item.data_required).lower() for item in work)
+    assert all("event_time=" in requirement for requirement in work[0].temporal_requirements)
 
 
 def test_signal_refuses_to_infer_temporal_precedence():
@@ -46,10 +45,11 @@ def test_signal_refuses_to_infer_temporal_precedence():
         provenance=("signal-source:v1",),
     )
     audit = quantitative_audit_from_runtime(signal)
-    assert any("lacks an event timestamp" in requirement for requirement in audit.temporal_requirements) if hasattr(audit, "temporal_requirements") else True
     work = work_from_runtime_object(signal)
+    assert any("lacks an event timestamp" in requirement for requirement in work[0].temporal_requirements)
     assert len(work) == 5
     assert any("event_time" in requirement for requirement in work[0].data_required)
+    assert audit.inference_type.value == "DESCRIPTIVE"
 
 
 def test_forecast_generates_predictive_validation_work():
@@ -79,7 +79,7 @@ def test_forecast_generates_predictive_validation_work():
     assert any("out-of-sample" in item.scientific_question for item in work)
 
 
-def test_runtime_object_without_provenance_fails_closed():
+def test_runtime_object_provenance_is_preserved_in_generated_work():
     now = datetime(2026, 9, 16, 10, 0, tzinfo=timezone.utc)
     observation = Observation(
         source_id="source-1",
@@ -94,7 +94,8 @@ def test_runtime_object_without_provenance_fails_closed():
         source_version="v1",
         revision=0,
         value=1.0,
-        provenance=("source-1:v1",),
+        provenance=("source-1:v1", "dataset-1:v1"),
     )
-    assert quantitative_audit_from_runtime(observation).provenance == ("source-1:v1",)
-    assert work_from_runtime_object(observation)
+    work = work_from_runtime_object(observation)
+    assert all("source-1:v1" in item.provenance for item in work)
+    assert all("dataset-1:v1" in item.provenance for item in work)
