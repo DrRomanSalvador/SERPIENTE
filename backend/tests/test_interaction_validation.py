@@ -37,8 +37,8 @@ def test_future_available_interaction_prediction_fails_closed():
     origin = datetime(2026, 9, 1, tzinfo=UTC)
     spec = InteractionSpec("weather", "mobility", "weather -> mobility", "6h", "weather affects travel")
     baseline = [_record(origin, 0.5)]
-    interaction = [_record(origin, 0.5, available_offset_minutes=5)]
     with pytest.raises(ValueError, match="not available at its origin"):
+        interaction = [_record(origin, 0.5, available_offset_minutes=5)]
         compare_incremental_predictive_value(spec, baseline, interaction, [1])
 
 
