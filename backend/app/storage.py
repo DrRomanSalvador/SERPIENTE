@@ -80,10 +80,8 @@ class RuntimeStore:
         encoded=json.dumps(asdict(item),sort_keys=True,default=str)
         fingerprint=json.dumps(item.fingerprint,sort_keys=True,default=str)
         with self._lock:
-            existing=self.db.execute("SELECT fingerprint,payload FROM scientific_work WHERE id=?",(item.work_id,)).fetchone()
-            if existing is not None:
-                if existing!=(fingerprint,encoded): raise RuntimeError("scientific work identity collision")
-                return
+            existing=self.db.execute("SELECT id FROM scientific_work WHERE fingerprint=?",(fingerprint,)).fetchone()
+            if existing is not None: return
             self.db.execute("INSERT INTO scientific_work(id,fingerprint,payload) VALUES(?,?,?)",(item.work_id,fingerprint,encoded))
 
     def scientific_result(self,item: ScientificWorkResult)->None:
@@ -141,15 +139,4 @@ class RuntimeStore:
 
     def snapshot(self)->dict[str,int]:
         with self._lock:
-            return {
-                "observations":self.db.execute("SELECT COUNT(*) FROM observations").fetchone()[0],
-                "events":self.db.execute("SELECT COUNT(*) FROM events").fetchone()[0],
-                "signals":self.db.execute("SELECT COUNT(*) FROM signals").fetchone()[0],
-                "forecasts":self.db.execute("SELECT COUNT(*) FROM forecasts").fetchone()[0],
-                "alerts":self.db.execute("SELECT COUNT(*) FROM alerts").fetchone()[0],
-                "outcomes":self.db.execute("SELECT COUNT(*) FROM outcomes").fetchone()[0],
-                "responses":self.db.execute("SELECT COUNT(*) FROM responses").fetchone()[0],
-                "scientific_work":self.db.execute("SELECT COUNT(*) FROM scientific_work").fetchone()[0],
-                "scientific_results":self.db.execute("SELECT COUNT(*) FROM scientific_results").fetchone()[0],
-                "scientific_claims":self.db.execute("SELECT COUNT(*) FROM scientific_claims").fetchone()[0],
-            }
+            return {"observations":self.db.execute("SELECT COUNT(*) FROM observations").fetchone()[0],"events":self.db.execute("SELECT COUNT(*) FROM events").fetchone()[0],"signals":self.db.execute("SELECT COUNT(*) FROM signals").fetchone()[0],"forecasts":self.db.execute("SELECT COUNT(*) FROM forecasts").fetchone()[0],"alerts":self.db.execute("SELECT COUNT(*) FROM alerts").fetchone()[0],"outcomes":self.db.execute("SELECT COUNT(*) FROM outcomes").fetchone()[0],"responses":self.db.execute("SELECT COUNT(*) FROM responses").fetchone()[0],"scientific_work":self.db.execute("SELECT COUNT(*) FROM scientific_work").fetchone()[0],"scientific_results":self.db.execute("SELECT COUNT(*) FROM scientific_results").fetchone()[0],"scientific_claims":self.db.execute("SELECT COUNT(*) FROM scientific_claims").fetchone()[0]}
