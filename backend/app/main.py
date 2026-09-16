@@ -64,7 +64,7 @@ async def record_outcome(request:Request,payload:OutcomeInput):
     if stored is None: raise HTTPException(404,"prediction_id does not reference a persisted forecast")
     origin=datetime.fromisoformat(stored["origin_time"])
     if stored["target"]!=payload.target: raise HTTPException(422,"outcome target does not match forecast target")
-    outcome=ForecastOutcome(payload.prediction_id,origin,payload.outcome_time,payload.target,payload.observed,float(stored["probability"]),stored["horizon"],tuple(payload.provenance)); result=request.app.state.runtime.record_outcome(outcome)
+    forecast_provenance=tuple(stored.get("provenance",())); outcome_provenance=tuple(dict.fromkeys((*forecast_provenance,*payload.provenance))); outcome=ForecastOutcome(payload.prediction_id,origin,payload.outcome_time,payload.target,payload.observed,float(stored["probability"]),stored["horizon"],outcome_provenance); result=request.app.state.runtime.record_outcome(outcome)
     return {"prediction_id":outcome.prediction_id,"brier_error":round(outcome.brier_error,12),"log_loss_error":round(outcome.log_loss_error,12),"scientific_execution":result.outcome.value,"outcome_time":outcome.outcome_time.astimezone(timezone.utc).isoformat()}
 @app.post("/v1/responses")
 async def record_response(request:Request,payload:ResponseInput):
