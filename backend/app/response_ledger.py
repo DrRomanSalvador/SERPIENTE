@@ -126,11 +126,31 @@ class ResponseLedgerRecord:
         return self.response_eligible and self.eligible_from <= moment <= self.eligible_until
 
     def to_dict(self) -> dict[str, object]:
-        return asdict(self)
+        payload = asdict(self)
+        for key in ("decision_time", "action_time", "eligible_from", "eligible_until", "outcome_time"):
+            if payload[key] is not None:
+                payload[key] = payload[key].isoformat()
+        payload["response_status"] = self.response_status.value
+        payload["causal_status"] = self.causal_status.value
+        return payload
+
+
+def _timestamp(value: object, field: str) -> datetime | None:
+    if value is None:
+        return None
+    if not isinstance(value, str):
+        raise ValueError(f"{field} must be an ISO-8601 string or null")
+    try:
+        parsed = datetime.fromisoformat(value)
+    except ValueError as exc:
+        raise ValueError(f"{field} is not a valid ISO-8601 timestamp") from exc
+    if parsed.tzinfo is None or parsed.utcoffset() is None:
+        raise ValueError(f"{field} must be timezone-aware")
+    return parsed
 
 
 def validate_response_payload(payload: Mapping[str, object]) -> ResponseLedgerRecord:
-    """Validate a transport-shaped payload without inferring missing lifecycle stages."""
+    """Deserialize and validate a transport-shaped response without filling missing stages."""
     required = {
         "response_id", "alert_id", "response_status", "response_eligible",
         "eligible_from", "eligible_until", "intended_mechanism", "response_horizon",
@@ -139,7 +159,40 @@ def validate_response_payload(payload: Mapping[str, object]) -> ResponseLedgerRe
     missing = sorted(key for key in required if key not in payload)
     if missing:
         raise ValueError(f"response payload missing required fields: {', '.join(missing)}")
-    raise NotImplementedError("transport deserialization must be performed by the API boundary with explicit timestamp parsing")
+    provenance = payload["provenance"]
+    if not isinstance(provenance, (list, tuple)) or not provenance or any(not isinstance(x, str) or not x for x in provenance):
+        raise ValueError("provenance must be a non-empty sequence of non-empty strings")
+    try:
+        status = ResponseStatus(str(payload["response_status"]))
+        causal_status = CausalStatus(str(payload["causal_status"]))
+    except ValueError as exc:
+        raise ValueError("invalid response_status or causal_status") from exc
+    return ResponseLedgerRecord(
+        response_id=str(payload["response_id"]),
+        alert_id=str(payload["alert_id"]),
+        prediction_id=None if payload.get("prediction_id") is None else str(payload["prediction_id"]),
+        decision_id=None if payload.get("decision_id") is None else str(payload["decision_id"]),
+        decision_time=_timestamp(payload.get("decision_time"), "decision_time"),
+        action_id=None if payload.get("action_id") is None else str(payload["action_id"]),
+        action_time=_timestamp(payload.get("action_time"), "action_time"),
+        response_status=status,
+        response_eligible=bool(payload["response_eligible"]),
+        eligible_from=_timestamp(payload["eligible_from"], "eligible_from") or datetime.min.replace(tzinfo=timezone.utc),
+        eligible_until=_timestamp(payload["eligible_until"], "eligible_until") or datetime.min.replace(tzinfo=timezone.utc),
+        intended_mechanism=str(payload["intended_mechanism"]),
+        response_delay_seconds=None if payload.get("response_delay_seconds") is None else float(payload["response_delay_seconds"]),
+        intervention_exposure=None if payload.get("intervention_exposure") is None else str(payload["intervention_exposure"]),
+        implementation_failure=None if payload.get("implementation_failure") is None else str(payload["implementation_failure"]),
+        resource_capacity_constraints=None if payload.get("resource_capacity_constraints") is None else str(payload["resource_capacity_constraints"]),
+        outcome_id=None if payload.get("outcome_id") is None else str(payload["outcome_id"]),
+        outcome_time=_timestamp(payload.get("outcome_time"), "outcome_time"),
+        response_horizon=str(payload["response_horizon"]),
+        outcome_ascertainment_ref=None if payload.get("outcome_ascertainment_ref") is None else str(payload["outcome_ascertainment_ref"]),
+        counterfactual_ref=None if payload.get("counterfactual_ref") is None else str(payload["counterfactual_ref"]),
+        causal_status=causal_status,
+        provenance=tuple(provenance),
+        actor_context=None if payload.get("actor_context") is None else str(payload["actor_context"]),
+    )
 
 
 __all__ = ["CausalStatus", "ResponseLedgerRecord", "ResponseStatus", "validate_response_payload"]
