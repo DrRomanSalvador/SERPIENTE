@@ -16,6 +16,7 @@ from .pit_binding import FeatureBinding, point_in_time_fingerprint
 from .polling import PollJob, SourcePoller
 from .prediction import LongitudinalForecaster, ValidationReport
 from .quality import DataProcessMonitor
+from .response import ResponseRecord
 from .scientific_protocol import ScientificValidationProtocol
 from .storage import RuntimeStore
 from .supervised import LongitudinalSupervisedFrameBuilder
@@ -67,109 +68,69 @@ class SerpienteRuntime:
             raise ValueError("at least one observation is required")
         if self.store:
             with self.store.transaction():
-                for row in rows:
-                    self.store.observation(row)
+                for row in rows: self.store.observation(row)
         self.observations.add(rows)
         return len(rows)
 
     def poll_once(self, client, job: PollJob, mapper: ObservationMapper) -> int:
-        rows = SourcePoller(client).poll_once(job, mapper)
-        return self.ingest(rows)
+        return self.ingest(SourcePoller(client).poll_once(job, mapper))
 
     def process(self, *, as_of: datetime, geography: str, domain: str, event_type: str) -> RuntimeResult:
-        history = self.observations.history_at(as_of)
-        current = [row for row in self.observations.at(as_of) if not row.missing]
-        if not current:
-            raise ValueError("no current non-missing observations available")
-        state = self.state_builder.build(history, as_of=as_of)
-        quality = self.quality_monitor.assess(history)
-        provenance = tuple(dict.fromkeys(p for row in current for p in row.provenance))
-        magnitude = sum(abs(float(row.value)) for row in current) / len(current)
-        event = self.event_engine.normalize(tuple(str(row.observation_id) for row in current), event_time=max(r.event_time for r in current), geography=geography, domain=domain, event_type=event_type, magnitude=magnitude, provenance=provenance)
-        signals = [self.signal_engine.from_state(event, variable_id=variable, value=value, baseline=value - state.trends.get(variable, 0.0), trend=state.trends.get(variable, 0.0), acceleration=state.accelerations.get(variable, 0.0), volatility=state.volatility.get(variable, 0.0), provenance=provenance) for variable, value in state.values.items()]
-        pattern = self.pattern_engine.detect(signals)
-        trajectory = self.trajectory_engine.build(pattern, signals, regime=state.regime)
-        alert = self.alert_engine.build(trajectory, event_ids=(str(event.event_id),), signal_ids=tuple(str(s.signal_id) for s in signals), data_process_change=quality.process_change, data_process_reasons=quality.reasons)
+        history=self.observations.history_at(as_of); current=[row for row in self.observations.at(as_of) if not row.missing]
+        if not current: raise ValueError("no current non-missing observations available")
+        state=self.state_builder.build(history,as_of=as_of); quality=self.quality_monitor.assess(history)
+        provenance=tuple(dict.fromkeys(p for row in current for p in row.provenance)); magnitude=sum(abs(float(row.value)) for row in current)/len(current)
+        event=self.event_engine.normalize(tuple(str(row.observation_id) for row in current),event_time=max(r.event_time for r in current),geography=geography,domain=domain,event_type=event_type,magnitude=magnitude,provenance=provenance)
+        signals=[self.signal_engine.from_state(event,variable_id=variable,value=value,baseline=value-state.trends.get(variable,0.0),trend=state.trends.get(variable,0.0),acceleration=state.accelerations.get(variable,0.0),volatility=state.volatility.get(variable,0.0),provenance=provenance) for variable,value in state.values.items()]
+        pattern=self.pattern_engine.detect(signals); trajectory=self.trajectory_engine.build(pattern,signals,regime=state.regime)
+        alert=self.alert_engine.build(trajectory,event_ids=(str(event.event_id),),signal_ids=tuple(str(s.signal_id) for s in signals),data_process_change=quality.process_change,data_process_reasons=quality.reasons)
         if self.store:
             with self.store.transaction():
                 self.store.event(event)
-                for signal in signals:
-                    self.store.signal(signal)
+                for signal in signals: self.store.signal(signal)
                 self.store.alert(alert)
-        return RuntimeResult(str(event.event_id), tuple(str(s.signal_id) for s in signals), pattern.pattern_id, trajectory.trajectory_id, alert)
+        return RuntimeResult(str(event.event_id),tuple(str(s.signal_id) for s in signals),pattern.pattern_id,trajectory.trajectory_id,alert)
+
+    def record_response(self, response: ResponseRecord) -> None:
+        """Persist warning -> decision -> action -> outcome lineage without causal claims."""
+        if self.store is None: raise RuntimeError("response persistence requires a runtime store")
+        with self.store.transaction(): self.store.response(response)
 
     def train(self, frame) -> ValidationReport:
         if "target_time" in frame.columns:
-            finding = temporal_leakage_check(frame)
-            if not finding.passed:
-                raise ValueError(finding.reason)
-        numeric = frame.select_dtypes(include=[np.number]).drop(columns=["target"], errors="ignore")
-        if numeric.empty:
-            raise ValueError("scientific training requires at least one numeric predictor")
-        finite = numerical_adversarial_check(numeric.to_numpy(dtype=float).ravel())
-        if not finite.passed:
-            raise ValueError(finite.reason)
-        if len(numeric) >= 10:
-            drift = drift_report(numeric.iloc[: len(numeric)//2, 0], numeric.iloc[len(numeric)//2:, 0])
-            if drift["drift_detected"]:
-                pass
+            finding=temporal_leakage_check(frame)
+            if not finding.passed: raise ValueError(finding.reason)
+        numeric=frame.select_dtypes(include=[np.number]).drop(columns=["target"],errors="ignore")
+        if numeric.empty: raise ValueError("scientific training requires at least one numeric predictor")
+        finite=numerical_adversarial_check(numeric.to_numpy(dtype=float).ravel())
+        if not finite.passed: raise ValueError(finite.reason)
+        if len(numeric)>=10:
+            drift=drift_report(numeric.iloc[:len(numeric)//2,0],numeric.iloc[len(numeric)//2:,0])
+            if drift["drift_detected"]: pass
         return self.forecaster.fit(frame)
 
     def train_from_observations(self, observations: Iterable[Observation], *, target_variable: str, horizon_steps: int = 1) -> ValidationReport:
-        frame = self.supervised_builder.build(observations, target_variable=target_variable, horizon_steps=horizon_steps)
-        return self.train(frame)
+        return self.train(self.supervised_builder.build(observations,target_variable=target_variable,horizon_steps=horizon_steps))
 
     def train_multi_horizon(self, frames: dict[str, object]) -> dict[str, ValidationReport]:
-        self.multi_horizon = MultiHorizonForecaster(tuple(frames.keys()))
-        return self.multi_horizon.fit(frames)
+        self.multi_horizon=MultiHorizonForecaster(tuple(frames.keys())); return self.multi_horizon.fit(frames)
 
-    def forecast(
-        self,
-        features,
-        *,
-        feature_bindings: tuple[FeatureBinding, ...],
-        origin_time: datetime,
-        target: str,
-        horizon: str,
-        regime: str,
-        provenance: tuple[str, ...],
-    ):
-        if origin_time.tzinfo is None:
-            raise ValueError("origin_time must be timezone-aware")
-        fingerprint = point_in_time_fingerprint(features, feature_bindings, origin_time=origin_time)
-        forecast = self.forecaster.forecast(features, feature_bindings=feature_bindings, origin_time=origin_time, target=target, horizon=horizon, regime=regime, provenance=provenance, point_in_time_fingerprint=fingerprint)
+    def forecast(self, features, *, feature_bindings: tuple[FeatureBinding, ...], origin_time: datetime, target: str, horizon: str, regime: str, provenance: tuple[str, ...]):
+        if origin_time.tzinfo is None: raise ValueError("origin_time must be timezone-aware")
+        fingerprint=point_in_time_fingerprint(features,feature_bindings,origin_time=origin_time)
+        forecast=self.forecaster.forecast(features,feature_bindings=feature_bindings,origin_time=origin_time,target=target,horizon=horizon,regime=regime,provenance=provenance,point_in_time_fingerprint=fingerprint)
         if self.store:
-            with self.store.transaction():
-                self.store.forecast(forecast)
+            with self.store.transaction(): self.store.forecast(forecast)
         return forecast
 
-    def evaluate_interaction(
-        self,
-        interaction: InteractionSpec,
-        baseline: Sequence[PredictionRecord],
-        interaction_model: Sequence[PredictionRecord],
-        outcomes: Sequence[int],
-    ) -> IncrementalPredictiveValue:
-        """Evaluate incremental predictive value without upgrading it to causality."""
-        return compare_incremental_predictive_value(interaction, baseline, interaction_model, outcomes)
+    def evaluate_interaction(self, interaction: InteractionSpec, baseline: Sequence[PredictionRecord], interaction_model: Sequence[PredictionRecord], outcomes: Sequence[int]) -> IncrementalPredictiveValue:
+        return compare_incremental_predictive_value(interaction,baseline,interaction_model,outcomes)
 
-    def forecast_multi_horizon(
-        self,
-        features: dict[str, object],
-        *,
-        feature_bindings: dict[str, tuple[FeatureBinding, ...]],
-        origin_time: datetime,
-        target: str,
-        regime: str,
-        provenance: tuple[str, ...],
-    ):
-        if self.multi_horizon is None:
-            raise RuntimeError("multi-horizon models must be trained before forecasting")
-        if origin_time.tzinfo is None:
-            raise ValueError("origin_time must be timezone-aware")
-        forecasts = self.multi_horizon.forecast(features, feature_bindings=feature_bindings, origin_time=origin_time, target=target, regime=regime, provenance=provenance)
+    def forecast_multi_horizon(self, features: dict[str, object], *, feature_bindings: dict[str, tuple[FeatureBinding, ...]], origin_time: datetime, target: str, regime: str, provenance: tuple[str, ...]):
+        if self.multi_horizon is None: raise RuntimeError("multi-horizon models must be trained before forecasting")
+        if origin_time.tzinfo is None: raise ValueError("origin_time must be timezone-aware")
+        forecasts=self.multi_horizon.forecast(features,feature_bindings=feature_bindings,origin_time=origin_time,target=target,regime=regime,provenance=provenance)
         if self.store:
             with self.store.transaction():
-                for forecast in forecasts:
-                    self.store.forecast(forecast)
+                for forecast in forecasts: self.store.forecast(forecast)
         return forecasts
