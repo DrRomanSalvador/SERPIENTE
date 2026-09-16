@@ -27,34 +27,33 @@ def _runtime_identity(obj: RuntimeObject) -> str:
 
 def quantitative_audit_from_runtime(obj: RuntimeObject) -> QuantitativeMethodAudit:
     """Construct a conservative audit from an actual runtime object."""
-    identity = _runtime_identity(obj)
     provenance = _provenance(obj)
     if not provenance:
         raise ValueError("runtime object requires provenance")
 
     if isinstance(obj, Observation):
-        method_id = f"runtime-observation:{identity}"
+        method_id = f"runtime-observation:{obj.source_id}:{obj.dataset_id}:{obj.variable_id}"
         question = f"Does the observed {obj.variable_id} change represent a change in the underlying phenomenon?"
         predictor_definitions = (obj.variable_id, f"denominator-status:{obj.variable_id}", f"coverage-process:{obj.source_id}", f"reporting-process:{obj.source_id}")
         units = (obj.unit, "population/time", "coverage", "reporting")
         alternatives = ("latent phenomenon changed", "measurement or reporting process changed", "denominator or coverage changed")
-        temporal_requirements = (f"event_time={obj.event_time.isoformat()}", f"available_at={obj.acquisition_time.isoformat()}", f"publication_time={obj.publication_time.isoformat()}", f"revision={obj.revision}")
+        temporal_requirements = ("preserve event_time/available_at/publication_time/revision semantics", "evaluate the complete eligible observation history before temporal inference")
         inference = InferenceType.DESCRIPTIVE
     elif isinstance(obj, Signal):
-        method_id = f"runtime-signal:{identity}"
-        question = f"Does signal {identity} contain evidence of a phenomenon change beyond observation-process and model-residual explanations?"
+        method_id = f"runtime-signal:{obj.domain}:{obj.variable_id}"
+        question = f"Does signal {obj.variable_id} contain evidence of a phenomenon change beyond observation-process and model-residual explanations?"
         predictor_definitions = (obj.variable_id, "anomaly_score", "trend", "acceleration", "volatility", "event_time:REQUIRED_FOR_TEMPORAL_INFERENCE")
         units = ("runtime variable units", "probability", "variable units/time", "variable units/time^2", "variable units", "timestamp")
         alternatives = ("underlying phenomenon changed", "observation-process or measurement changed", "model residual or transient noise produced the signal")
         temporal_requirements = ("signal contract currently lacks an event timestamp", "do not infer lead time or temporal precedence from signal identity")
         inference = InferenceType.DESCRIPTIVE
     else:
-        method_id = f"runtime-forecast:{identity}"
-        question = f"Does forecast {identity} add out-of-sample information beyond its stated baseline and remain temporally valid?"
+        method_id = f"runtime-forecast:{obj.target}:{obj.horizon}:{obj.regime}"
+        question = f"Does forecast {obj.target} add out-of-sample information beyond its stated baseline and remain temporally valid?"
         predictor_definitions = (f"target:{obj.target}", f"horizon:{obj.horizon}", f"PIT:{obj.point_in_time_fingerprint}", "baseline", "outcome")
         units = ("binary probability", "time horizon", "PIT fingerprint", "baseline probability", "binary outcome")
         alternatives = ("forecast contains incremental predictive information", "apparent performance reflects baseline prevalence/seasonality", "apparent performance is affected by leakage, regime change, or outcome ascertainment")
-        temporal_requirements = (f"forecast_origin={obj.origin_time.isoformat()}", "outcome must be after forecast origin", "information cutoff must not include future-derived data")
+        temporal_requirements = ("preserve forecast origin, information cutoff and outcome-time semantics", "outcome must be after forecast origin", "information cutoff must not include future-derived data")
         inference = InferenceType.PREDICTIVE
 
     return QuantitativeMethodAudit(
@@ -79,12 +78,10 @@ def quantitative_audit_from_runtime(obj: RuntimeObject) -> QuantitativeMethodAud
 
 
 def work_from_runtime_object(obj: RuntimeObject, *, owner: str = "ESPIA") -> tuple[ScientificWork, ...]:
-    audit = quantitative_audit_from_runtime(obj)
-    return work_from_quantitative_audit(audit, owner=owner)
+    return work_from_quantitative_audit(quantitative_audit_from_runtime(obj), owner=owner)
 
 
 def claim_from_runtime_object(obj: RuntimeObject) -> ScientificClaim:
-    """Create the weakest epistemic claim supported by the runtime object type."""
     if isinstance(obj, Observation):
         state = KnowledgeState.OBSERVATION
         statement = f"Runtime observation {obj.observation_id} exists with the declared value and provenance."
@@ -95,19 +92,14 @@ def claim_from_runtime_object(obj: RuntimeObject) -> ScientificClaim:
         state = KnowledgeState.PREDICTION
         statement = f"Runtime forecast {obj.forecast_id} exists with the declared probability, horizon and PIT fingerprint."
     return ScientificClaim(
-        claim_id=f"runtime-claim:{_runtime_identity(obj)}",
-        statement=statement,
-        state=state,
-        evidence_ids=_provenance(obj),
-        assumptions=("runtime contract is faithfully represented",),
-        provenance=_provenance(obj),
+        claim_id=f"runtime-claim:{_runtime_identity(obj)}", statement=statement, state=state,
+        evidence_ids=_provenance(obj), assumptions=("runtime contract is faithfully represented",), provenance=_provenance(obj),
         capability_authorized=("runtime object existence and declared semantics",),
         capability_not_authorized=("causal effect", "prospective validity", "real-world denominator correctness"),
     )
 
 
 def execute_runtime_scientific_cycle(obj: RuntimeObject, *, owner: str = "ESPIA") -> tuple[tuple[ScientificWorkResult, ...], ScientificClaim]:
-    """Run the complete local finding -> audit -> work -> execution -> update loop."""
     claim = claim_from_runtime_object(obj)
     results: list[ScientificWorkResult] = []
     for work in prioritize_work(work_from_runtime_object(obj, owner=owner)):
@@ -117,7 +109,4 @@ def execute_runtime_scientific_cycle(obj: RuntimeObject, *, owner: str = "ESPIA"
     return tuple(results), claim
 
 
-__all__ = [
-    "RuntimeObject", "claim_from_runtime_object", "execute_runtime_scientific_cycle",
-    "quantitative_audit_from_runtime", "work_from_runtime_object",
-]
+__all__ = ["RuntimeObject", "claim_from_runtime_object", "execute_runtime_scientific_cycle", "quantitative_audit_from_runtime", "work_from_runtime_object"]
