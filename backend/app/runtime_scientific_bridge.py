@@ -7,7 +7,6 @@ forecasts to validity, or associations to causality.
 """
 from __future__ import annotations
 
-from datetime import datetime
 from typing import TypeAlias
 
 from .contracts import Forecast, Observation, Signal
@@ -28,14 +27,6 @@ def _runtime_identity(obj: RuntimeObject) -> str:
     if isinstance(obj, Signal):
         return str(obj.signal_id)
     return str(obj.forecast_id)
-
-
-def _runtime_time(obj: RuntimeObject) -> datetime:
-    if isinstance(obj, Observation):
-        return obj.event_time
-    if isinstance(obj, Signal):
-        return next(iter(()), None)  # signal contract has no event timestamp
-    return obj.origin_time
 
 
 def quantitative_audit_from_runtime(obj: RuntimeObject) -> QuantitativeMethodAudit:
@@ -65,15 +56,13 @@ def quantitative_audit_from_runtime(obj: RuntimeObject) -> QuantitativeMethodAud
             "measurement or reporting process changed",
             "denominator or coverage changed",
         )
-        temporal = (
+        temporal_requirements = (
             f"event_time={obj.event_time.isoformat()}",
             f"available_at={obj.acquisition_time.isoformat()}",
             f"publication_time={obj.publication_time.isoformat()}",
             f"revision={obj.revision}",
         )
         inference = InferenceType.DESCRIPTIVE
-        equation = "Y_t = g(S_t, O_t, D_t, R_t, C_t) + epsilon_t"
-        data = predictor_definitions
     elif isinstance(obj, Signal):
         method_id = f"runtime-signal:{identity}"
         question = f"Does signal {identity} contain evidence of a phenomenon change beyond observation-process and model-residual explanations?"
@@ -90,13 +79,11 @@ def quantitative_audit_from_runtime(obj: RuntimeObject) -> QuantitativeMethodAud
             "observation-process or measurement changed",
             "model residual or transient noise produced the signal",
         )
-        temporal = (
+        temporal_requirements = (
             "signal contract currently lacks an event timestamp",
             "do not infer lead time or temporal precedence from signal identity",
         )
         inference = InferenceType.DESCRIPTIVE
-        equation = "signal = f(value, anomaly_score, trend, acceleration, volatility)"
-        data = predictor_definitions + ("event_time:REQUIRED_FOR_TEMPORAL_INFERENCE",)
     else:
         method_id = f"runtime-forecast:{identity}"
         question = f"Does forecast {identity} add out-of-sample information beyond its stated baseline and remain temporally valid?"
@@ -113,14 +100,12 @@ def quantitative_audit_from_runtime(obj: RuntimeObject) -> QuantitativeMethodAud
             "apparent performance reflects baseline prevalence/seasonality",
             "apparent performance is affected by leakage, regime change, or outcome ascertainment",
         )
-        temporal = (
+        temporal_requirements = (
             f"forecast_origin={obj.origin_time.isoformat()}",
             "outcome must be after forecast origin",
             "information cutoff must not include future-derived data",
         )
         inference = InferenceType.PREDICTIVE
-        equation = "Y_(t+h) ~ p(Y_(t+h) | I_t); compare candidate against baseline"
-        data = predictor_definitions
 
     return QuantitativeMethodAudit(
         method_id=method_id,
