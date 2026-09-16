@@ -105,6 +105,7 @@ class LongitudinalForecaster:
         ensemble, tree = self._predict_pair(X_test)
         logistic = np.asarray(self._calibrator.predict(np.clip(self._model.predict_proba(X_test)[:, 1], 1e-8, 1 - 1e-8)), dtype=float)
         prevalence = np.full(len(y_test), float(y_train.mean()))
+        persistence = frame.iloc[cal_end - 1 : n - 1]["target"].astype(float).to_numpy()
         test_times = pd.to_datetime(frame.iloc[cal_end:]["time"], utc=True)
         seasonal = np.array([self._seasonal_rates.get(int(day), float(y_train.mean())) for day in test_times.dt.dayofweek], dtype=float)
         scores = [
@@ -112,6 +113,7 @@ class LongitudinalForecaster:
             ModelScore("longitudinal_gradient_boosting", float(brier_score_loss(y_test, tree)), float(log_loss(y_test, tree, labels=[0, 1])), float(roc_auc_score(y_test, tree))),
             ModelScore("longitudinal_ensemble_isotonic", float(brier_score_loss(y_test, ensemble)), float(log_loss(y_test, ensemble, labels=[0, 1])), float(roc_auc_score(y_test, ensemble))),
             ModelScore("temporal_prevalence_baseline", float(brier_score_loss(y_test, prevalence)), float(log_loss(y_test, prevalence, labels=[0, 1])), None),
+            ModelScore("target_persistence_baseline", float(brier_score_loss(y_test, persistence)), float(log_loss(y_test, persistence, labels=[0, 1])), None),
             ModelScore("seasonal_dayofweek_baseline", float(brier_score_loss(y_test, seasonal)), float(log_loss(y_test, seasonal, labels=[0, 1])), None),
         ]
         return ValidationReport(train_end, cal_end - train_end, n - cal_end, tuple(scores), False, True)
