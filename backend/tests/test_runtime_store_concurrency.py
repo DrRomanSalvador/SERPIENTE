@@ -79,3 +79,35 @@ def test_runtime_store_accepts_outcome_for_existing_forecast(tmp_path):
         assert store.snapshot()["outcomes"] == 1
     finally:
         store.close()
+
+
+def test_runtime_store_identical_outcome_delivery_is_idempotent(tmp_path):
+    store = RuntimeStore(tmp_path / "outcome-idempotent.sqlite")
+    now = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    forecast = Forecast("forecast-idempotent", now, "24h", "risk", 0.8, 0.4, 1.0, 0.2, 0.1, 0.0, 0.1, 0.2, 0.0, "STABLE", ("official",), "a" * 64)
+    outcome = ForecastOutcome("forecast-idempotent", now, now + timedelta(days=1), "risk", 1, 0.8, "24h", ("official:outcome",))
+    try:
+        store.forecast(forecast)
+        with ThreadPoolExecutor(max_workers=8) as executor:
+            futures = [executor.submit(store.outcome, outcome) for _ in range(16)]
+            for future in futures:
+                future.result()
+        assert store.snapshot()["outcomes"] == 1
+    finally:
+        store.close()
+
+
+def test_runtime_store_conflicting_outcome_delivery_is_rejected(tmp_path):
+    store = RuntimeStore(tmp_path / "outcome-conflict.sqlite")
+    now = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    forecast = Forecast("forecast-conflict", now, "24h", "risk", 0.8, 0.4, 1.0, 0.2, 0.1, 0.0, 0.1, 0.2, 0.0, "STABLE", ("official",), "a" * 64)
+    first = ForecastOutcome("forecast-conflict", now, now + timedelta(days=1), "risk", 1, 0.8, "24h", ("official:outcome",))
+    second = ForecastOutcome("forecast-conflict", now, now + timedelta(days=1), "risk", 0, 0.8, "24h", ("official:outcome",))
+    try:
+        store.forecast(forecast)
+        store.outcome(first)
+        with pytest.raises(RuntimeError, match="identity collision"):
+            store.outcome(second)
+        assert store.snapshot()["outcomes"] == 1
+    finally:
+        store.close()
