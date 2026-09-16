@@ -2,12 +2,13 @@ from __future__ import annotations
 
 from datetime import datetime
 from dataclasses import dataclass
-from typing import Iterable
+from typing import Iterable, Sequence
 
 import numpy as np
 
 from .contracts import Alert, Observation
 from .engines import AlertEngine, EventEngine, PatternEngine, SignalEngine, TrajectoryEngine
+from .interaction_validation import InteractionSpec, IncrementalPredictiveValue, PredictionRecord, compare_incremental_predictive_value
 from .longitudinal import LongitudinalStateBuilder, PointInTimeStore
 from .mapping import ObservationMapper
 from .multihorizon import MultiHorizonForecaster
@@ -141,6 +142,16 @@ class SerpienteRuntime:
             with self.store.transaction():
                 self.store.forecast(forecast)
         return forecast
+
+    def evaluate_interaction(
+        self,
+        interaction: InteractionSpec,
+        baseline: Sequence[PredictionRecord],
+        interaction_model: Sequence[PredictionRecord],
+        outcomes: Sequence[int],
+    ) -> IncrementalPredictiveValue:
+        """Evaluate incremental predictive value without upgrading it to causality."""
+        return compare_incremental_predictive_value(interaction, baseline, interaction_model, outcomes)
 
     def forecast_multi_horizon(
         self,
