@@ -5,16 +5,16 @@ from math import isfinite
 from typing import Any
 from uuid import UUID, uuid4
 
-def _finite(value: float, name: str) -> float:
+def _finite(value:float,name:str)->float:
     if not isfinite(value): raise ValueError(f"{name} must be finite")
     return float(value)
-def _utc(value: datetime, name: str) -> datetime:
+def _utc(value:datetime,name:str)->datetime:
     if value.tzinfo is None: raise ValueError(f"{name} must be timezone-aware")
     return value.astimezone(timezone.utc)
 
 @dataclass(frozen=True, slots=True)
 class Observation:
-    source_id:str; dataset_id:str; variable_id:str; semantic_definition:str; unit:str; geography:str; event_time:datetime; publication_time:datetime; acquisition_time:datetime; source_version:str; revision:int; value:float|None; provenance:tuple[str,...]; denominator_id:str|None=None; quality:float=1.0; missing:bool=False; transformation_lineage:tuple[str,...]=(); observation_id:UUID|str=None
+    source_id:str; dataset_id:str; variable_id:str; semantic_definition:str; unit:str; geography:str; event_time:datetime; publication_time:datetime; acquisition_time:datetime; source_version:str; revision:int; value:float|None; provenance:tuple[str,...]; quality:float=1.0; missing:bool=False; transformation_lineage:tuple[str,...]=(); observation_id:UUID|str=None; denominator_id:str|None=None
     def __post_init__(self)->None:
         object.__setattr__(self,"event_time",_utc(self.event_time,"event_time")); object.__setattr__(self,"publication_time",_utc(self.publication_time,"publication_time")); object.__setattr__(self,"acquisition_time",_utc(self.acquisition_time,"acquisition_time"))
         if self.event_time>self.acquisition_time: raise ValueError("event_time cannot be after acquisition_time")
