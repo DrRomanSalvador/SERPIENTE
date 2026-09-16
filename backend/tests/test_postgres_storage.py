@@ -1,11 +1,12 @@
 import os
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 import pytest
 
-from app.contracts import Forecast, Observation
+from app.contracts import Alert, Forecast, Observation
 from app.outcomes import ForecastOutcome
 from app.postgres_storage import PostgresRuntimeStore
+from app.response import ResponseRecord
 
 
 @pytest.mark.skipif(not os.getenv("SERPIENTE_TEST_DATABASE_URL"), reason="PostgreSQL integration environment not configured")
@@ -50,5 +51,23 @@ def test_postgres_runtime_rejects_conflicting_outcome_retry():
         store.outcome(first)
         with pytest.raises(RuntimeError, match="identity collision"):
             store.outcome(second)
+    finally:
+        store.close()
+
+
+@pytest.mark.skipif(not os.getenv("SERPIENTE_TEST_DATABASE_URL"), reason="PostgreSQL integration environment not configured")
+def test_postgres_runtime_response_idempotency_and_identity_collision():
+    store = PostgresRuntimeStore(os.environ["SERPIENTE_TEST_DATABASE_URL"])
+    now = datetime(2026, 9, 16, 12, 0, tzinfo=timezone.utc)
+    alert = Alert("response-alert", "HIGH", 0.8, ("test",), ("E1",), ("S1",), (), 0.2, ("source:test",))
+    response = ResponseRecord("response-1", "response-alert", None, "decision-1", now, "action-1", now + timedelta(minutes=5), True, "test mechanism", 300.0, "observed", None, None, None, None, "24h", "NOT_ESTABLISHED", ("test",))
+    conflicting = ResponseRecord("response-1", "response-alert", None, "decision-2", now, "action-2", now + timedelta(minutes=5), True, "different mechanism", 300.0, "observed", None, None, None, None, "24h", "NOT_ESTABLISHED", ("test",))
+    try:
+        store.alert(alert)
+        store.response(response)
+        store.response(response)
+        assert store.snapshot()["responses"] >= 1
+        with pytest.raises(RuntimeError, match="identity collision"):
+            store.response(conflicting)
     finally:
         store.close()
