@@ -4,7 +4,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from hashlib import sha256
 import json
-from typing import Mapping, Sequence
+from typing import Sequence
 
 import pandas as pd
 
@@ -22,6 +22,8 @@ class FeatureBinding:
     available_at: datetime
     source_versions: tuple[str, ...]
     transformation_lineage: tuple[str, ...] = ()
+    derived_from_outcome: bool = False
+    future_derived: bool = False
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "available_at", _utc(self.available_at, "available_at"))
@@ -46,6 +48,8 @@ def point_in_time_fingerprint(
         binding = by_name[name]
         if binding.available_at > origin:
             raise ValueError(f"feature {name} was not available at forecast origin")
+        if binding.derived_from_outcome or binding.future_derived:
+            raise ValueError(f"feature {name} is not eligible for point-in-time forecasting")
     row = frame.iloc[-1]
     payload = {
         "origin_time": origin.isoformat(),
@@ -56,6 +60,8 @@ def point_in_time_fingerprint(
                 "available_at": by_name[name].available_at.isoformat(),
                 "source_versions": tuple(sorted(by_name[name].source_versions)),
                 "transformation_lineage": tuple(by_name[name].transformation_lineage),
+                "derived_from_outcome": by_name[name].derived_from_outcome,
+                "future_derived": by_name[name].future_derived,
             }
             for name in sorted(names)
         },
