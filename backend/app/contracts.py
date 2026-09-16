@@ -8,14 +8,12 @@ from uuid import UUID, uuid4
 
 
 def _finite(value: float, name: str) -> float:
-    if not isfinite(value):
-        raise ValueError(f"{name} must be finite")
+    if not isfinite(value): raise ValueError(f"{name} must be finite")
     return float(value)
 
 
 def _utc(value: datetime, name: str) -> datetime:
-    if value.tzinfo is None:
-        raise ValueError(f"{name} must be timezone-aware")
+    if value.tzinfo is None: raise ValueError(f"{name} must be timezone-aware")
     return value.astimezone(timezone.utc)
 
 
@@ -43,26 +41,17 @@ class Observation:
         object.__setattr__(self, "event_time", _utc(self.event_time, "event_time"))
         object.__setattr__(self, "publication_time", _utc(self.publication_time, "publication_time"))
         object.__setattr__(self, "acquisition_time", _utc(self.acquisition_time, "acquisition_time"))
-        if self.event_time > self.acquisition_time:
-            raise ValueError("event_time cannot be after acquisition_time")
-        if self.publication_time > self.acquisition_time:
-            raise ValueError("publication_time cannot be after acquisition_time")
-        if self.revision < 0:
-            raise ValueError("revision must be non-negative")
+        if self.event_time > self.acquisition_time: raise ValueError("event_time cannot be after acquisition_time")
+        if self.publication_time > self.acquisition_time: raise ValueError("publication_time cannot be after acquisition_time")
+        if self.revision < 0: raise ValueError("revision must be non-negative")
         if self.missing:
-            if self.value is not None:
-                raise ValueError("missing observations must not carry a numeric value")
-        elif self.value is None:
-            raise ValueError("non-missing observations require a value")
-        else:
-            _finite(self.value, "value")
+            if self.value is not None: raise ValueError("missing observations must not carry a numeric value")
+        elif self.value is None: raise ValueError("non-missing observations require a value")
+        else: _finite(self.value, "value")
         q = _finite(self.quality, "quality")
-        if not 0.0 <= q <= 1.0:
-            raise ValueError("quality must be in [0,1]")
-        if not self.source_id or not self.dataset_id or not self.variable_id or not self.semantic_definition:
-            raise ValueError("source, dataset, variable and semantic definition are required")
-        if not self.provenance:
-            raise ValueError("provenance is required")
+        if not 0.0 <= q <= 1.0: raise ValueError("quality must be in [0,1]")
+        if not self.source_id or not self.dataset_id or not self.variable_id or not self.semantic_definition: raise ValueError("source, dataset, variable and semantic definition are required")
+        if not self.provenance: raise ValueError("provenance is required")
         object.__setattr__(self, "observation_id", self.observation_id or uuid4())
 
     def known_at(self, as_of: datetime) -> bool:
@@ -71,10 +60,7 @@ class Observation:
 
     def to_dict(self) -> dict[str, Any]:
         data = asdict(self)
-        data["event_time"] = self.event_time.isoformat()
-        data["publication_time"] = self.publication_time.isoformat()
-        data["acquisition_time"] = self.acquisition_time.isoformat()
-        data["observation_id"] = str(self.observation_id)
+        data["event_time"] = self.event_time.isoformat(); data["publication_time"] = self.publication_time.isoformat(); data["acquisition_time"] = self.acquisition_time.isoformat(); data["observation_id"] = str(self.observation_id)
         return data
 
 
@@ -90,10 +76,8 @@ class Event:
     provenance: tuple[str, ...]
 
     def __post_init__(self) -> None:
-        object.__setattr__(self, "event_time", _utc(self.event_time, "event_time"))
-        _finite(self.magnitude, "magnitude")
-        if not self.observation_ids or not self.provenance:
-            raise ValueError("event requires observation_ids and provenance")
+        object.__setattr__(self, "event_time", _utc(self.event_time, "event_time")); _finite(self.magnitude, "magnitude")
+        if not self.observation_ids or not self.provenance: raise ValueError("event requires observation_ids and provenance")
 
 
 @dataclass(frozen=True, slots=True)
@@ -109,16 +93,14 @@ class Signal:
     acceleration: float
     volatility: float
     provenance: tuple[str, ...]
+    event_time: datetime | None = None
 
     def __post_init__(self) -> None:
-        for name, value in (("value", self.value), ("z_score", self.z_score), ("anomaly_score", self.anomaly_score), ("trend", self.trend), ("acceleration", self.acceleration), ("volatility", self.volatility)):
-            _finite(value, name)
-        if not self.domain or not self.variable_id:
-            raise ValueError("signal domain and variable are required")
-        if not 0 <= self.anomaly_score <= 1:
-            raise ValueError("anomaly_score must be in [0,1]")
-        if not self.provenance:
-            raise ValueError("signal provenance is required")
+        for name, value in (("value", self.value), ("z_score", self.z_score), ("anomaly_score", self.anomaly_score), ("trend", self.trend), ("acceleration", self.acceleration), ("volatility", self.volatility)): _finite(value, name)
+        if not self.domain or not self.variable_id: raise ValueError("signal domain and variable are required")
+        if not 0 <= self.anomaly_score <= 1: raise ValueError("anomaly_score must be in [0,1]")
+        if not self.provenance: raise ValueError("signal provenance is required")
+        if self.event_time is not None: object.__setattr__(self, "event_time", _utc(self.event_time, "event_time"))
 
 
 @dataclass(frozen=True, slots=True)
@@ -142,13 +124,10 @@ class Forecast:
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "origin_time", _utc(self.origin_time, "origin_time"))
-        values = (self.probability, self.lower, self.upper, self.aleatoric, self.epistemic, self.measurement, self.parameter, self.structural, self.model_disagreement)
-        if not all(isfinite(v) for v in values):
-            raise ValueError("forecast values must be finite")
-        if not 0 <= self.probability <= 1 or not 0 <= self.model_disagreement <= 1:
-            raise ValueError("probability and model disagreement must be in [0,1]")
-        if self.lower > self.upper or not self.provenance or not self.point_in_time_fingerprint:
-            raise ValueError("invalid forecast interval, provenance or point-in-time fingerprint")
+        values=(self.probability,self.lower,self.upper,self.aleatoric,self.epistemic,self.measurement,self.parameter,self.structural,self.model_disagreement)
+        if not all(isfinite(v) for v in values): raise ValueError("forecast values must be finite")
+        if not 0 <= self.probability <= 1 or not 0 <= self.model_disagreement <= 1: raise ValueError("probability and model disagreement must be in [0,1]")
+        if self.lower > self.upper or not self.provenance or not self.point_in_time_fingerprint: raise ValueError("invalid forecast interval, provenance or point-in-time fingerprint")
 
 
 @dataclass(frozen=True, slots=True)
@@ -164,9 +143,6 @@ class Alert:
     provenance: tuple[str, ...]
 
     def __post_init__(self) -> None:
-        _finite(self.score, "score")
-        _finite(self.uncertainty, "uncertainty")
-        if not 0 <= self.score <= 1 or not 0 <= self.uncertainty <= 1:
-            raise ValueError("alert score and uncertainty must be in [0,1]")
-        if not self.provenance:
-            raise ValueError("alert provenance is required")
+        _finite(self.score, "score"); _finite(self.uncertainty, "uncertainty")
+        if not 0 <= self.score <= 1 or not 0 <= self.uncertainty <= 1: raise ValueError("alert score and uncertainty must be in [0,1]")
+        if not self.provenance: raise ValueError("alert provenance is required")
