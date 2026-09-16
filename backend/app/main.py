@@ -174,7 +174,8 @@ async def record_outcome(request: Request, payload: OutcomeInput):
 async def record_response(request: Request, payload: ResponseInput):
     _role(request, {"ANALYST"})
     try:
-        response = ResponseRecord(**payload.model_dump(provenance=tuple(payload.provenance)))
+        values = {**payload.model_dump(), "provenance": tuple(payload.provenance)}
+        response = ResponseRecord(**values)
         request.app.state.runtime.record_response(response)
     except ValueError as exc:
         raise HTTPException(422, str(exc)) from exc
