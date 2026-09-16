@@ -17,3 +17,14 @@ def test_history_and_latest_snapshot_are_distinct():
     state = LongitudinalStateBuilder().build(store.history_at(as_of), as_of=as_of)
     assert state.trends["v"] > 0
     assert state.lags["v"]
+
+
+def test_trend_is_normalized_by_elapsed_time_for_irregular_sampling():
+    origin = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    times = (origin, origin + timedelta(days=1), origin + timedelta(days=3))
+    rows = [
+        Observation("s", "d", "v", "semantic", "unit", "Ceuta", t, t, t, "v1", 0, value, ("official:s",))
+        for t, value in zip(times, (0.0, 1.0, 3.0))
+    ]
+    state = LongitudinalStateBuilder().build(rows, as_of=times[-1])
+    assert abs(state.trends["v"] - 1.0 / 86400.0) < 1e-12
