@@ -18,6 +18,8 @@ from .prediction import LongitudinalForecaster, ValidationReport
 from .quality import DataProcessMonitor
 from .response import ResponseRecord
 from .scientific_protocol import ScientificValidationProtocol
+from .scientific_work_execution import ScientificWorkResult
+from .runtime_scientific_bridge import work_from_runtime_object, execute_runtime_scientific_cycle
 from .storage import RuntimeStore
 from .supervised import LongitudinalSupervisedFrameBuilder
 from .validation import drift_report, numerical_adversarial_check, temporal_leakage_check
@@ -68,7 +70,15 @@ class SerpienteRuntime:
             raise ValueError("at least one observation is required")
         if self.store:
             with self.store.transaction():
-                for row in rows: self.store.observation(row)
+                for row in rows:
+                    self.store.observation(row)
+                    works = work_from_runtime_object(row)
+                    for work in works:
+                        self.store.scientific_work(work)
+                    results, claim = execute_runtime_scientific_cycle(row)
+                    for result in results:
+                        self.store.scientific_result(result)
+                    self.store.scientific_claim(claim)
         self.observations.add(rows)
         return len(rows)
 
@@ -87,7 +97,8 @@ class SerpienteRuntime:
         if self.store:
             with self.store.transaction():
                 self.store.event(event)
-                for signal in signals: self.store.signal(signal)
+                for signal in signals:
+                    self.store.signal(signal)
                 self.store.alert(alert)
         return RuntimeResult(str(event.event_id),tuple(str(s.signal_id) for s in signals),pattern.pattern_id,trajectory.trajectory_id,alert)
 
