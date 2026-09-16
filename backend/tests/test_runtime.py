@@ -8,6 +8,7 @@ from app.ceutia_boundary import prediction_to_ceutia
 from app.contracts import Observation
 from app.ingestion import CSVObservationAdapter, JSONObservationAdapter, HTTPSourceClient, IngestionError
 from app.longitudinal import LongitudinalStateBuilder, PointInTimeStore
+from app.pit_binding import FeatureBinding
 from app.prediction import LongitudinalForecaster
 from app.runtime import SerpienteRuntime
 from app.storage import RuntimeStore
@@ -96,5 +97,7 @@ def test_ceutia_boundary_requires_provenance():
     rows = [obs(i, value=float(i + 1)) for i in range(12)]
     runtime = SerpienteRuntime(); runtime.ingest(rows)
     runtime.train(pd.DataFrame({"time": pd.date_range("2026-01-01", periods=40, freq="D", tz="UTC"), "x": np.arange(40, dtype=float), "target": (np.arange(40) % 2).astype(int)}))
-    forecast = runtime.forecast(pd.DataFrame({"x": [39.0]}), origin_time=rows[-1].event_time + timedelta(hours=2), target="risk", horizon="24h", regime="STABLE", provenance=("official",))
+    features = pd.DataFrame({"x": [39.0]})
+    bindings = (FeatureBinding("x", ("feature-observation-x",), rows[-1].acquisition_time, ("v1",), ("test.runtime.x",)),)
+    forecast = runtime.forecast(features, feature_bindings=bindings, origin_time=rows[-1].event_time + timedelta(hours=2), target="risk", horizon="24h", regime="STABLE", provenance=("official",))
     envelope = prediction_to_ceutia(forecast); assert envelope.canonical_hash()
