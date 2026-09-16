@@ -20,6 +20,7 @@ def work_from_quantitative_audit(audit: QuantitativeMethodAudit, *, owner: str =
         ("robustness", "; ".join(audit.robustness), "test robustness"),
         ("validation", "; ".join(audit.validation), "execute validation design"),
     )
+    temporal_requirements = audit.temporal_requirements or ("preserve information cutoff and outcome time",)
     for dimension, requirement, question_suffix in dimensions:
         candidates.append(
             ScientificWork(
@@ -38,7 +39,7 @@ def work_from_quantitative_audit(audit: QuantitativeMethodAudit, *, owner: str =
                 assumptions=audit.assumptions,
                 identifiability=audit.identification.value,
                 data_required=audit.predictor_definitions,
-                temporal_requirements=("preserve information cutoff and outcome time",),
+                temporal_requirements=temporal_requirements,
                 falsification=audit.falsification,
                 benchmark=audit.benchmarks,
                 validation=audit.validation,
