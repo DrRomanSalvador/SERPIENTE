@@ -11,6 +11,8 @@ from typing import Any, Iterator
 from .contracts import Alert, Event, Forecast, Observation, Signal
 from .outcomes import ForecastOutcome
 from .response import ResponseRecord
+from .scientific_discovery_engine import ScientificClaim, ScientificWork
+from .scientific_work_execution import ScientificWorkResult
 
 
 class RuntimeStore:
@@ -28,10 +30,14 @@ class RuntimeStore:
         CREATE TABLE IF NOT EXISTS alerts (id TEXT PRIMARY KEY, payload TEXT NOT NULL);
         CREATE TABLE IF NOT EXISTS outcomes (id INTEGER PRIMARY KEY AUTOINCREMENT, prediction_id TEXT NOT NULL, outcome_time TEXT NOT NULL, payload TEXT NOT NULL);
         CREATE TABLE IF NOT EXISTS responses (id TEXT PRIMARY KEY, alert_id TEXT NOT NULL, decision_time TEXT NOT NULL, action_time TEXT NOT NULL, outcome_time TEXT, payload TEXT NOT NULL);
+        CREATE TABLE IF NOT EXISTS scientific_work (id TEXT PRIMARY KEY, fingerprint TEXT NOT NULL, payload TEXT NOT NULL);
+        CREATE TABLE IF NOT EXISTS scientific_results (id TEXT PRIMARY KEY, work_id TEXT NOT NULL, runtime_id TEXT NOT NULL, payload TEXT NOT NULL);
+        CREATE TABLE IF NOT EXISTS scientific_claims (id TEXT PRIMARY KEY, payload TEXT NOT NULL);
         CREATE INDEX IF NOT EXISTS idx_observations_event_time ON observations(event_time);
         CREATE INDEX IF NOT EXISTS idx_forecasts_origin_time ON forecasts(origin_time);
         CREATE INDEX IF NOT EXISTS idx_outcomes_prediction_id ON outcomes(prediction_id);
         CREATE INDEX IF NOT EXISTS idx_responses_alert_id ON responses(alert_id);
+        CREATE INDEX IF NOT EXISTS idx_scientific_results_runtime_id ON scientific_results(runtime_id);
         """)
         columns = {row[1] for row in self.db.execute("PRAGMA table_info(observations)")}
         if "publication_time" not in columns:
@@ -70,6 +76,34 @@ class RuntimeStore:
     def signal(self,item: Signal)->None: self._insert("signals",str(item.signal_id),"",asdict(item))
     def forecast(self,item: Forecast)->None: self._insert("forecasts",str(item.forecast_id),item.origin_time.isoformat(),asdict(item))
 
+    def scientific_work(self,item: ScientificWork)->None:
+        encoded=json.dumps(asdict(item),sort_keys=True,default=str)
+        fingerprint=json.dumps(item.fingerprint,sort_keys=True,default=str)
+        with self._lock:
+            existing=self.db.execute("SELECT fingerprint,payload FROM scientific_work WHERE id=?",(item.work_id,)).fetchone()
+            if existing is not None:
+                if existing!=(fingerprint,encoded): raise RuntimeError("scientific work identity collision")
+                return
+            self.db.execute("INSERT INTO scientific_work(id,fingerprint,payload) VALUES(?,?,?)",(item.work_id,fingerprint,encoded))
+
+    def scientific_result(self,item: ScientificWorkResult)->None:
+        key=f"{item.work_id}:{item.runtime_id}"
+        encoded=json.dumps(asdict(item),sort_keys=True,default=str)
+        with self._lock:
+            existing=self.db.execute("SELECT payload FROM scientific_results WHERE id=?",(key,)).fetchone()
+            if existing is not None:
+                if existing[0]!=encoded: raise RuntimeError("scientific result identity collision")
+                return
+            self.db.execute("INSERT INTO scientific_results(id,work_id,runtime_id,payload) VALUES(?,?,?,?)",(key,item.work_id,item.runtime_id,encoded))
+
+    def scientific_claim(self,item: ScientificClaim)->None:
+        encoded=json.dumps(asdict(item),sort_keys=True,default=str)
+        with self._lock:
+            existing=self.db.execute("SELECT payload FROM scientific_claims WHERE id=?",(item.claim_id,)).fetchone()
+            if existing is not None and existing[0]!=encoded: raise RuntimeError("scientific claim identity collision")
+            if existing is None: self.db.execute("INSERT INTO scientific_claims(id,payload) VALUES(?,?)",(item.claim_id,encoded))
+            else: self.db.execute("UPDATE scientific_claims SET payload=? WHERE id=?",(encoded,item.claim_id))
+
     def forecast_payload(self,prediction_id: str)->dict[str,Any]|None:
         with self._lock:
             row=self.db.execute("SELECT payload FROM forecasts WHERE id=?",(prediction_id,)).fetchone()
@@ -107,4 +141,15 @@ class RuntimeStore:
 
     def snapshot(self)->dict[str,int]:
         with self._lock:
-            return {"observations":self.db.execute("SELECT COUNT(*) FROM observations").fetchone()[0],"events":self.db.execute("SELECT COUNT(*) FROM events").fetchone()[0],"signals":self.db.execute("SELECT COUNT(*) FROM signals").fetchone()[0],"forecasts":self.db.execute("SELECT COUNT(*) FROM forecasts").fetchone()[0],"alerts":self.db.execute("SELECT COUNT(*) FROM alerts").fetchone()[0],"outcomes":self.db.execute("SELECT COUNT(*) FROM outcomes").fetchone()[0],"responses":self.db.execute("SELECT COUNT(*) FROM responses").fetchone()[0]}
+            return {
+                "observations":self.db.execute("SELECT COUNT(*) FROM observations").fetchone()[0],
+                "events":self.db.execute("SELECT COUNT(*) FROM events").fetchone()[0],
+                "signals":self.db.execute("SELECT COUNT(*) FROM signals").fetchone()[0],
+                "forecasts":self.db.execute("SELECT COUNT(*) FROM forecasts").fetchone()[0],
+                "alerts":self.db.execute("SELECT COUNT(*) FROM alerts").fetchone()[0],
+                "outcomes":self.db.execute("SELECT COUNT(*) FROM outcomes").fetchone()[0],
+                "responses":self.db.execute("SELECT COUNT(*) FROM responses").fetchone()[0],
+                "scientific_work":self.db.execute("SELECT COUNT(*) FROM scientific_work").fetchone()[0],
+                "scientific_results":self.db.execute("SELECT COUNT(*) FROM scientific_results").fetchone()[0],
+                "scientific_claims":self.db.execute("SELECT COUNT(*) FROM scientific_claims").fetchone()[0],
+            }
