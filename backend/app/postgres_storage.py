@@ -56,21 +56,22 @@ class PostgresRuntimeStore:
             cur.execute("INSERT INTO serpiente_alerts(id,payload) VALUES (%s,%s::jsonb)", (str(item.alert_id), self._json(asdict(item))))
 
     def outcome(self, item: ForecastOutcome) -> None:
-        with self.db.cursor() as cur:
-            cur.execute("SELECT 1 FROM serpiente_forecasts WHERE id = %s", (item.prediction_id,))
-            if cur.fetchone() is None:
-                raise ValueError("forecast must exist before recording its outcome")
-            cur.execute("INSERT INTO serpiente_outcomes(prediction_id,outcome_time,payload) VALUES (%s,%s,%s::jsonb)", (item.prediction_id, item.outcome_time, self._json(asdict(item))))
+        encoded = self._json(asdict(item))
+        with self.db.transaction():
+            with self.db.cursor() as cur:
+                cur.execute("SELECT 1 FROM serpiente_forecasts WHERE id = %s", (item.prediction_id,))
+                if cur.fetchone() is None:
+                    raise ValueError("forecast must exist before recording its outcome")
+                cur.execute("SELECT outcome_time,payload FROM serpiente_outcomes WHERE prediction_id=%s FOR UPDATE", (item.prediction_id,))
+                existing = cur.fetchone()
+                if existing is not None:
+                    if existing != (item.outcome_time, encoded) and existing[1] != json.loads(encoded):
+                        raise RuntimeError("forecast outcome identity collision: existing outcome differs")
+                    return
+                cur.execute("INSERT INTO serpiente_outcomes(prediction_id,outcome_time,payload) VALUES (%s,%s,%s::jsonb)", (item.prediction_id, item.outcome_time, encoded))
 
     def snapshot(self) -> dict[str, int]:
-        queries = (
-            ("observations", "SELECT COUNT(*) FROM serpiente_observations"),
-            ("events", "SELECT COUNT(*) FROM serpiente_events"),
-            ("signals", "SELECT COUNT(*) FROM serpiente_signals"),
-            ("forecasts", "SELECT COUNT(*) FROM serpiente_forecasts"),
-            ("alerts", "SELECT COUNT(*) FROM serpiente_alerts"),
-            ("outcomes", "SELECT COUNT(*) FROM serpiente_outcomes"),
-        )
+        queries = (("observations", "SELECT COUNT(*) FROM serpiente_observations"), ("events", "SELECT COUNT(*) FROM serpiente_events"), ("signals", "SELECT COUNT(*) FROM serpiente_signals"), ("forecasts", "SELECT COUNT(*) FROM serpiente_forecasts"), ("alerts", "SELECT COUNT(*) FROM serpiente_alerts"), ("outcomes", "SELECT COUNT(*) FROM serpiente_outcomes"))
         with self.db.cursor() as cur:
             result = {}
             for key, query in queries:
