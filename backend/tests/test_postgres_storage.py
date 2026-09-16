@@ -19,6 +19,7 @@ def test_postgres_runtime_roundtrip_and_foreign_key():
         store.observation(observation)
         store.forecast(forecast)
         store.outcome(outcome)
+        store.outcome(outcome)
     assert store.forecast_payload("p1")["target"] == "risk"
     assert store.snapshot()["observations"] >= 1
     assert store.snapshot()["forecasts"] >= 1
