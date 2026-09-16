@@ -94,11 +94,30 @@ class RuntimeStore:
         self._insert("alerts", str(item.alert_id), "", asdict(item))
 
     def outcome(self, item: ForecastOutcome) -> None:
+        encoded = json.dumps(asdict(item), sort_keys=True, default=str)
+        owns_transaction = False
         with self._lock:
-            forecast_exists = self.db.execute("SELECT 1 FROM forecasts WHERE id = ?", (item.prediction_id,)).fetchone()
-            if forecast_exists is None:
-                raise ValueError("forecast must exist before recording its outcome")
-            self.db.execute("INSERT INTO outcomes(prediction_id,outcome_time,payload) VALUES(?,?,?)", (item.prediction_id, item.outcome_time.isoformat(), json.dumps(asdict(item), sort_keys=True, default=str)))
+            if not self.db.in_transaction:
+                self.db.execute("BEGIN IMMEDIATE")
+                owns_transaction = True
+            try:
+                forecast_exists = self.db.execute("SELECT 1 FROM forecasts WHERE id = ?", (item.prediction_id,)).fetchone()
+                if forecast_exists is None:
+                    raise ValueError("forecast must exist before recording its outcome")
+                existing = self.db.execute("SELECT outcome_time,payload FROM outcomes WHERE prediction_id=? ORDER BY id LIMIT 1", (item.prediction_id,)).fetchone()
+                if existing is not None:
+                    if existing != (item.outcome_time.isoformat(), encoded):
+                        raise RuntimeError("forecast outcome identity collision: existing outcome differs")
+                    if owns_transaction:
+                        self.db.commit()
+                    return
+                self.db.execute("INSERT INTO outcomes(prediction_id,outcome_time,payload) VALUES(?,?,?)", (item.prediction_id, item.outcome_time.isoformat(), encoded))
+                if owns_transaction:
+                    self.db.commit()
+            except Exception:
+                if owns_transaction:
+                    self.db.rollback()
+                raise
 
     def snapshot(self) -> dict[str, int]:
         with self._lock:
