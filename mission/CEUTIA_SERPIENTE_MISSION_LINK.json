@@ -1,0 +1,11 @@
+{
+  "mission_id": "CEUTIA_SERPIENTE_CONTINUOUS_SCIENTIFIC_ENGINEERING",
+  "agent_role": "Ingeniero de CeutIA",
+  "component": "SERPIENTE",
+  "component_role": "state -> dynamics -> interaction -> prediction -> uncertainty -> risk -> warning",
+  "mission_continuity": true,
+  "canonical_state_repository": "DrRomanSalvador/Ceuta",
+  "canonical_state_path": "mission/CEUTIA_SERPIENTE_MISSION_STATE.json",
+  "bootstrap_document": "mission/MISSION_BOOTSTRAP.md",
+  "rule": "Do not create a separate SERPIENTE mission. Reconcile this component against the canonical continuous mission state before work."
+}
