@@ -157,23 +157,71 @@ class ScientificWork:
             return float("inf")
         return self.expected_information_gain * self.decision_relevance / self.cost
 
+    @property
+    def fingerprint(self) -> tuple[str, ...]:
+        """Stable semantic identity used to reject duplicate work with new IDs."""
+        return (
+            self.trigger.strip().lower(), self.scientific_question.strip().lower(),
+            self.affected_object.strip().lower(), self.identifiability.strip().lower(),
+            tuple(sorted(x.strip().lower() for x in self.data_required)),
+            tuple(sorted(x.strip().lower() for x in self.temporal_requirements)),
+            tuple(sorted(x.strip().lower() for x in self.falsification)),
+        )
+
 
 def prioritize_work(work_items: Iterable[ScientificWork]) -> tuple[ScientificWork, ...]:
     """Order candidate work by a transparent VOI-like proxy, never by task count."""
     return tuple(sorted(work_items, key=lambda w: (-w.priority_proxy, w.work_id)))
 
 
+def deduplicate_work(work_items: Iterable[ScientificWork]) -> tuple[ScientificWork, ...]:
+    """Keep the first semantic candidate; task IDs cannot manufacture novelty."""
+    seen: set[tuple[str, ...]] = set()
+    unique: list[ScientificWork] = []
+    for work in work_items:
+        if work.fingerprint in seen:
+            continue
+        seen.add(work.fingerprint)
+        unique.append(work)
+    return tuple(unique)
+
+
+def admissible_work(work: ScientificWork) -> bool:
+    """Enforce the minimum candidate-work gate before persistence or execution."""
+    return bool(
+        work.provenance
+        and work.alternative_explanations
+        and work.falsification
+        and work.benchmark
+        and work.validation
+        and work.stopping_rule.strip()
+        and work.capability_not_authorized
+    )
+
+
+# Explicitly bounded promotion graph. Unknown/observation states cannot jump directly
+# to causal or established knowledge merely because a caller supplies criterion_satisfied.
+_ALLOWED_PROMOTIONS: frozenset[tuple[KnowledgeState, KnowledgeState]] = frozenset({
+    (KnowledgeState.UNKNOWN, KnowledgeState.OBSERVATION),
+    (KnowledgeState.OBSERVATION, KnowledgeState.MEASUREMENT),
+    (KnowledgeState.MEASUREMENT, KnowledgeState.DESCRIPTION),
+    (KnowledgeState.DESCRIPTION, KnowledgeState.ASSOCIATION),
+    (KnowledgeState.ASSOCIATION, KnowledgeState.PREDICTION),
+    (KnowledgeState.PREDICTION, KnowledgeState.DECISION_EVIDENCE),
+    (KnowledgeState.HYPOTHESIS, KnowledgeState.MODEL),
+    (KnowledgeState.MODEL, KnowledgeState.PREDICTION),
+    (KnowledgeState.MODEL, KnowledgeState.MECHANISTIC_HYPOTHESIS),
+    (KnowledgeState.MECHANISTIC_HYPOTHESIS, KnowledgeState.CAUSAL_EFFECT),
+    (KnowledgeState.CAUSAL_EFFECT, KnowledgeState.INTERVENTION_EVIDENCE),
+    (KnowledgeState.OUTCOME, KnowledgeState.EVALUATED_OUTCOME),
+    (KnowledgeState.EVALUATED_OUTCOME, KnowledgeState.REPLICATED),
+    (KnowledgeState.REPLICATED, KnowledgeState.ESTABLISHED),
+})
+
+
 def can_promote(current: KnowledgeState, target: KnowledgeState, *, criterion_satisfied: bool) -> bool:
-    """Guard epistemic promotion; implementation alone never satisfies it."""
-    if not criterion_satisfied:
-        return False
-    forbidden = {
-        (KnowledgeState.ASSOCIATION, KnowledgeState.CAUSAL_EFFECT),
-        (KnowledgeState.PREDICTION, KnowledgeState.CAUSAL_EFFECT),
-        (KnowledgeState.MODEL, KnowledgeState.ESTABLISHED),
-        (KnowledgeState.REPLICATED, KnowledgeState.CAUSAL_EFFECT),
-    }
-    return (current, target) not in forbidden
+    """Allow only an explicit adjacent epistemic transition with its criterion met."""
+    return criterion_satisfied and (current, target) in _ALLOWED_PROMOTIONS
 
 
 def adversarial_update(
@@ -183,20 +231,13 @@ def adversarial_update(
     evidence_ids: tuple[str, ...] = (),
 ) -> ScientificClaim:
     """Apply only an explicit adversarial result; None preserves uncertainty."""
+    evidence = tuple(dict.fromkeys((*claim.evidence_ids, *evidence_ids)))
     if interpretation_survived is None:
         return claim
-    if interpretation_survived:
-        return ScientificClaim(
-            claim.claim_id, claim.statement, claim.state,
-            tuple(dict.fromkeys((*claim.evidence_ids, *evidence_ids))),
-            claim.assumptions, claim.provenance, claim.capability_authorized,
-            claim.capability_not_authorized,
-        )
+    state = claim.state if interpretation_survived else KnowledgeState.REJECTED
     return ScientificClaim(
-        claim.claim_id, claim.statement, KnowledgeState.REJECTED,
-        tuple(dict.fromkeys((*claim.evidence_ids, *evidence_ids))),
-        claim.assumptions, claim.provenance, claim.capability_authorized,
-        claim.capability_not_authorized,
+        claim.claim_id, claim.statement, state, evidence, claim.assumptions,
+        claim.provenance, claim.capability_authorized, claim.capability_not_authorized,
     )
 
 
@@ -222,6 +263,6 @@ def scientific_impact_map(
 
 __all__ = [
     "AlternativeExplanation", "FalsificationTask", "KnowledgeState", "ScientificClaim",
-    "ScientificWork", "WorkStatus", "adversarial_update", "can_promote",
-    "prioritize_work", "scientific_impact_map",
+    "ScientificWork", "WorkStatus", "adversarial_update", "admissible_work",
+    "can_promote", "deduplicate_work", "prioritize_work", "scientific_impact_map",
 ]
