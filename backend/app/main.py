@@ -15,6 +15,7 @@ from pydantic import BaseModel, Field
 
 from .contracts import Observation
 from .outcomes import ForecastOutcome
+from .response import ResponseRecord
 from .runtime import SerpienteRuntime
 from .storage_factory import create_runtime_store
 
@@ -75,6 +76,27 @@ class OutcomeInput(BaseModel):
     outcome_time: datetime
     target: str = Field(min_length=1, max_length=200)
     observed: int = Field(ge=0, le=1)
+    provenance: list[str] = Field(min_length=1, max_length=20)
+
+
+class ResponseInput(BaseModel):
+    response_id: str = Field(min_length=1, max_length=200)
+    alert_id: str = Field(min_length=1, max_length=200)
+    prediction_id: str | None = Field(default=None, max_length=200)
+    decision_id: str = Field(min_length=1, max_length=200)
+    decision_time: datetime
+    action_id: str = Field(min_length=1, max_length=200)
+    action_time: datetime
+    response_eligible: bool
+    intended_mechanism: str = Field(min_length=1, max_length=2000)
+    response_delay_seconds: float = Field(ge=0)
+    intervention_exposure: str = Field(min_length=1, max_length=2000)
+    implementation_failure: str | None = Field(default=None, max_length=2000)
+    resource_capacity_constraints: str | None = Field(default=None, max_length=2000)
+    outcome_id: str | None = Field(default=None, max_length=200)
+    outcome_time: datetime | None = None
+    response_horizon: str = Field(min_length=1, max_length=200)
+    causal_status: str = Field(min_length=1, max_length=200)
     provenance: list[str] = Field(min_length=1, max_length=20)
 
 
@@ -146,6 +168,17 @@ async def record_outcome(request: Request, payload: OutcomeInput):
     with request.app.state.runtime.store.transaction():
         request.app.state.runtime.store.outcome(outcome)
     return {"prediction_id": outcome.prediction_id, "brier_error": round(outcome.brier_error, 12), "log_loss_error": round(outcome.log_loss_error, 12), "outcome_time": outcome.outcome_time.astimezone(timezone.utc).isoformat()}
+
+
+@app.post("/v1/responses")
+async def record_response(request: Request, payload: ResponseInput):
+    _role(request, {"ANALYST"})
+    try:
+        response = ResponseRecord(**payload.model_dump(provenance=tuple(payload.provenance)))
+        request.app.state.runtime.record_response(response)
+    except ValueError as exc:
+        raise HTTPException(422, str(exc)) from exc
+    return {"response_id": response.response_id, "alert_id": response.alert_id, "decision_id": response.decision_id, "action_id": response.action_id, "causal_status": response.causal_status}
 
 
 def main() -> None:
