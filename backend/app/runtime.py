@@ -156,13 +156,7 @@ class SerpienteRuntime:
             raise RuntimeError("multi-horizon models must be trained before forecasting")
         if origin_time.tzinfo is None:
             raise ValueError("origin_time must be timezone-aware")
-        fingerprints = {
-            horizon: point_in_time_fingerprint(features[horizon], feature_bindings[horizon], origin_time=origin_time)
-            for horizon in self.multi_horizon.horizons
-        }
-        if len(set(fingerprints.values())) != 1:
-            raise ValueError("multi-horizon forecasts must share one point-in-time origin fingerprint")
-        forecasts = self.multi_horizon.forecast(features, feature_bindings=feature_bindings, origin_time=origin_time, target=target, regime=regime, provenance=provenance, point_in_time_fingerprint=next(iter(fingerprints.values())))
+        forecasts = self.multi_horizon.forecast(features, feature_bindings=feature_bindings, origin_time=origin_time, target=target, regime=regime, provenance=provenance)
         if self.store:
             with self.store.transaction():
                 for forecast in forecasts:
