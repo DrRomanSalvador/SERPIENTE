@@ -72,8 +72,9 @@ def quantitative_audit_from_runtime(obj: RuntimeObject) -> QuantitativeMethodAud
             "trend",
             "acceleration",
             "volatility",
+            "event_time:REQUIRED_FOR_TEMPORAL_INFERENCE",
         )
-        units = ("runtime variable units", "probability", "variable units/time", "variable units/time^2", "variable units")
+        units = ("runtime variable units", "probability", "variable units/time", "variable units/time^2", "variable units", "timestamp")
         alternatives = (
             "underlying phenomenon changed",
             "observation-process or measurement changed",
@@ -152,6 +153,7 @@ def quantitative_audit_from_runtime(obj: RuntimeObject) -> QuantitativeMethodAud
             "real-world denominator correctness",
         ),
         provenance=provenance,
+        temporal_requirements=temporal_requirements,
     )
 
 
