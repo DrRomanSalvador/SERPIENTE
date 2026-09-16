@@ -65,49 +65,20 @@ def execute_scientific_work(work: ScientificWork, obj: Observation | Signal | Fo
     if isinstance(obj, Observation):
         temporal_ok = obj.event_time <= obj.publication_time <= obj.acquisition_time
         if not temporal_ok:
-            return _base_result(
-                work, obj, ExecutionOutcome.REJECTED,
-                "observation temporal ordering is invalid",
-                (f"event_time={obj.event_time.isoformat()}", f"publication_time={obj.publication_time.isoformat()}", f"acquisition_time={obj.acquisition_time.isoformat()}"),
-                "REJECTED", True,
-            )
-        finding = (
-            "observation contract is temporally coherent and provenance-bearing; a single observation "
-            "cannot distinguish phenomenon drift from measurement, reporting, denominator, coverage, or ascertainment drift"
-        )
-        return _base_result(
-            work, obj, ExecutionOutcome.INCONCLUSIVE, finding,
-            (f"source={obj.source_id}", f"dataset={obj.dataset_id}", f"variable={obj.variable_id}", f"revision={obj.revision}", f"known_at_acquisition={obj.known_at(obj.acquisition_time)}"),
-            "OBSERVATION", True,
-        )
+            return _base_result(work, obj, ExecutionOutcome.REJECTED, "observation temporal ordering is invalid", (f"event_time={obj.event_time.isoformat()}", f"publication_time={obj.publication_time.isoformat()}", f"acquisition_time={obj.acquisition_time.isoformat()}"), "REJECTED", False)
+        finding = "observation contract is temporally coherent and provenance-bearing; a single observation cannot distinguish phenomenon drift from measurement, reporting, denominator, coverage, or ascertainment drift"
+        return _base_result(work, obj, ExecutionOutcome.INCONCLUSIVE, finding, (f"source={obj.source_id}", f"dataset={obj.dataset_id}", f"variable={obj.variable_id}", f"revision={obj.revision}", f"known_at_acquisition={obj.known_at(obj.acquisition_time)}"), "OBSERVATION", False)
 
     if isinstance(obj, Signal):
-        finding = (
-            "signal is numerically well-formed and provenance-bearing, but the current Signal contract "
-            "contains no event timestamp; temporal precedence, lead time, and change-point claims are not identifiable from this object"
-        )
-        return _base_result(
-            work, obj, ExecutionOutcome.INCONCLUSIVE, finding,
-            (f"anomaly_score={obj.anomaly_score}", f"trend={obj.trend}", f"acceleration={obj.acceleration}", f"volatility={obj.volatility}"),
-            "SIGNAL", True,
-        )
+        finding = "signal is numerically well-formed and provenance-bearing, but the current Signal contract contains no event timestamp; temporal precedence, lead time, and change-point claims are not identifiable from this object"
+        return _base_result(work, obj, ExecutionOutcome.INCONCLUSIVE, finding, (f"anomaly_score={obj.anomaly_score}", f"trend={obj.trend}", f"acceleration={obj.acceleration}", f"volatility={obj.volatility}"), "SIGNAL", False)
 
     probability_ok = 0.0 <= obj.probability <= 1.0
     interval_ok = obj.lower <= obj.upper
     pit_present = bool(obj.point_in_time_fingerprint)
     if not (probability_ok and interval_ok and pit_present):
-        return _base_result(
-            work, obj, ExecutionOutcome.REJECTED,
-            "forecast contract fails a structural validity check",
-            (f"probability_ok={probability_ok}", f"interval_ok={interval_ok}", f"pit_present={pit_present}"),
-            "REJECTED", True,
-        )
-    return _base_result(
-        work, obj, ExecutionOutcome.BLOCKED_EXTERNAL,
-        "forecast is structurally eligible, but predictive scoring requires an outcome observed after forecast origin; no outcome is carried by the runtime Forecast object",
-        (f"origin_time={obj.origin_time.isoformat()}", f"horizon={obj.horizon}", f"target={obj.target}", f"pit={obj.point_in_time_fingerprint}"),
-        "PREDICTION", True,
-    )
+        return _base_result(work, obj, ExecutionOutcome.REJECTED, "forecast contract fails a structural validity check", (f"probability_ok={probability_ok}", f"interval_ok={interval_ok}", f"pit_present={pit_present}"), "REJECTED", False)
+    return _base_result(work, obj, ExecutionOutcome.BLOCKED_EXTERNAL, "forecast is structurally eligible, but predictive scoring requires an outcome observed after forecast origin; no outcome is carried by the runtime Forecast object", (f"origin_time={obj.origin_time.isoformat()}", f"horizon={obj.horizon}", f"target={obj.target}", f"pit={obj.point_in_time_fingerprint}"), "PREDICTION", False)
 
 
 def execute_forecast_outcome_scoring(work: ScientificWork, outcome: ForecastOutcome) -> ScientificWorkResult:
@@ -117,18 +88,10 @@ def execute_forecast_outcome_scoring(work: ScientificWork, outcome: ForecastOutc
     log_loss = float(-(outcome.observed * log(p) + (1 - outcome.observed) * log(1 - p)))
     provenance = tuple(dict.fromkeys((*work.provenance, *outcome.provenance, f"outcome:{outcome.prediction_id}")))
     return ScientificWorkResult(
-        work_id=work.work_id,
-        runtime_id=outcome.prediction_id,
-        outcome=ExecutionOutcome.EXECUTED,
-        finding=(f"single forecast-outcome pair scored: brier={brier:.12g}; log_loss={log_loss:.12g}; "
-                 "single-pair scoring does not establish calibration, discrimination, generalization, or prospective validity"),
-        evidence=(
-            f"origin_time={outcome.origin_time.isoformat()}", f"outcome_time={outcome.outcome_time.isoformat()}",
-            f"target={outcome.target}", f"horizon={outcome.horizon}", f"observed={outcome.observed}",
-            f"predicted_probability={outcome.predicted_probability}", f"brier={brier:.12g}", f"log_loss={log_loss:.12g}",
-        ),
-        epistemic_state="EVALUATED_OUTCOME",
-        new_work_required=True,
+        work_id=work.work_id, runtime_id=outcome.prediction_id, outcome=ExecutionOutcome.EXECUTED,
+        finding=(f"single forecast-outcome pair scored: brier={brier:.12g}; log_loss={log_loss:.12g}; single-pair scoring does not establish calibration, discrimination, generalization, or prospective validity"),
+        evidence=(f"origin_time={outcome.origin_time.isoformat()}", f"outcome_time={outcome.outcome_time.isoformat()}", f"target={outcome.target}", f"horizon={outcome.horizon}", f"observed={outcome.observed}", f"predicted_probability={outcome.predicted_probability}", f"brier={brier:.12g}", f"log_loss={log_loss:.12g}"),
+        epistemic_state="EVALUATED_OUTCOME", new_work_required=False,
         capability_not_authorized=tuple(dict.fromkeys((*work.capability_not_authorized, "calibration from a single pair", "incremental predictive value without a paired baseline"))),
         provenance=provenance,
     )
