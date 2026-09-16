@@ -5,7 +5,7 @@ from datetime import datetime
 import pandas as pd
 
 from .contracts import Forecast
-from .pit_binding import FeatureBinding
+from .pit_binding import FeatureBinding, point_in_time_fingerprint
 from .prediction import LongitudinalForecaster, ValidationReport
 
 
@@ -30,7 +30,6 @@ class MultiHorizonForecaster:
         target: str,
         regime: str,
         provenance: tuple[str, ...],
-        point_in_time_fingerprint: str,
     ) -> tuple[Forecast, ...]:
         if set(features) != set(self.horizons) or set(feature_bindings) != set(self.horizons):
             raise ValueError("features and point-in-time bindings are required for every configured horizon")
@@ -43,7 +42,7 @@ class MultiHorizonForecaster:
                 horizon=horizon,
                 regime=regime,
                 provenance=provenance,
-                point_in_time_fingerprint=point_in_time_fingerprint,
+                point_in_time_fingerprint=point_in_time_fingerprint(features[horizon], feature_bindings[horizon], origin_time=origin_time),
             )
             for horizon in self.horizons
         )
