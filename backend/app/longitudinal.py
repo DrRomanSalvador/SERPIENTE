@@ -99,12 +99,27 @@ class LongitudinalStateBuilder:
             if not np.isfinite(series.to_numpy()).all():
                 raise ValueError("state contains non-finite values")
             values[variable] = float(series.iloc[-1])
-            diff = series.diff().dropna()
-            trends[variable] = float(diff.tail(self.windows[0]).mean()) if not diff.empty else 0.0
-            acceleration = diff.diff().dropna()
-            accelerations[variable] = float(acceleration.tail(self.windows[0]).mean()) if not acceleration.empty else 0.0
-            recent_diff = diff.tail(self.windows[-1])
-            std = float(recent_diff.std(ddof=1)) if len(recent_diff) > 1 else 0.0
+            values_array = series.to_numpy(dtype=float)
+            time_seconds = series.index.asi8.astype(float) / 1_000_000_000.0
+            if len(values_array) > 1:
+                delta_seconds = np.diff(time_seconds)
+                if not np.all(delta_seconds > 0):
+                    raise ValueError("event times must be strictly increasing within a variable")
+                rate = np.diff(values_array) / delta_seconds
+            else:
+                rate = np.array([], dtype=float)
+            trends[variable] = float(rate[-self.windows[0]:].mean()) if rate.size else 0.0
+            if rate.size > 1:
+                rate_time = time_seconds[1:]
+                rate_delta = np.diff(rate_time)
+                if not np.all(rate_delta > 0):
+                    raise ValueError("rate times must be strictly increasing")
+                acceleration_rate = np.diff(rate) / rate_delta
+            else:
+                acceleration_rate = np.array([], dtype=float)
+            accelerations[variable] = float(acceleration_rate[-self.windows[0]:].mean()) if acceleration_rate.size else 0.0
+            recent_rate = rate[-self.windows[-1]:]
+            std = float(np.std(recent_rate, ddof=1)) if len(recent_rate) > 1 else 0.0
             volatility[variable] = std if np.isfinite(std) else 0.0
             lag_values[variable] = tuple(float(series.iloc[-(lag + 1)]) for lag in self.lags if len(series) > lag)
         numeric = np.array(list(values.values()), dtype=float)
