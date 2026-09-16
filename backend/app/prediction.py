@@ -44,6 +44,7 @@ class LongitudinalForecaster:
         self._model: Any = None
         self._secondary: Any = None
         self._calibrator: IsotonicRegression | None = None
+        self._ensemble_calibrator: IsotonicRegression | None = None
         self._feature_names: tuple[str, ...] = ()
         self._train_rows = 0
         self._calibration_rows = 0
@@ -92,39 +93,44 @@ class LongitudinalForecaster:
         self._secondary = HistGradientBoostingClassifier(max_iter=200, learning_rate=0.05, max_leaf_nodes=15, random_state=self.random_state)
         self._model.fit(X_train, y_train)
         self._secondary.fit(X_train, y_train)
-        cal_raw = np.clip(self._model.predict_proba(X_cal)[:, 1], 1e-8, 1 - 1e-8)
+        logistic_raw = np.clip(self._model.predict_proba(X_cal)[:, 1], 1e-8, 1 - 1e-8)
+        tree_raw = np.clip(self._secondary.predict_proba(X_cal)[:, 1], 1e-8, 1 - 1e-8)
         self._calibrator = IsotonicRegression(y_min=0.0, y_max=1.0, increasing=True, out_of_bounds="clip")
-        self._calibrator.fit(cal_raw, y_cal.to_numpy())
+        self._calibrator.fit(logistic_raw, y_cal.to_numpy())
+        ensemble_raw = (logistic_raw + tree_raw) / 2.0
+        self._ensemble_calibrator = IsotonicRegression(y_min=0.0, y_max=1.0, increasing=True, out_of_bounds="clip")
+        self._ensemble_calibrator.fit(ensemble_raw, y_cal.to_numpy())
         cal_times = pd.to_datetime(frame.iloc[train_end:cal_end]["time"], utc=True)
         self._seasonal_rates = {int(day): float(y_cal.to_numpy()[cal_times.dt.dayofweek.to_numpy() == day].mean()) for day in range(7) if (cal_times.dt.dayofweek == day).any()}
-        logistic, tree = self._predict_pair(X_test)
-        ensemble = (logistic + tree) / 2.0
+        ensemble, tree = self._predict_pair(X_test)
+        logistic = np.asarray(self._calibrator.predict(np.clip(self._model.predict_proba(X_test)[:, 1], 1e-8, 1 - 1e-8)), dtype=float)
         prevalence = np.full(len(y_test), float(y_train.mean()))
         test_times = pd.to_datetime(frame.iloc[cal_end:]["time"], utc=True)
         seasonal = np.array([self._seasonal_rates.get(int(day), float(y_train.mean())) for day in test_times.dt.dayofweek], dtype=float)
         scores = [
             ModelScore("longitudinal_logistic_isotonic", float(brier_score_loss(y_test, logistic)), float(log_loss(y_test, logistic, labels=[0, 1])), float(roc_auc_score(y_test, logistic))),
             ModelScore("longitudinal_gradient_boosting", float(brier_score_loss(y_test, tree)), float(log_loss(y_test, tree, labels=[0, 1])), float(roc_auc_score(y_test, tree))),
-            ModelScore("longitudinal_ensemble", float(brier_score_loss(y_test, ensemble)), float(log_loss(y_test, ensemble, labels=[0, 1])), float(roc_auc_score(y_test, ensemble))),
+            ModelScore("longitudinal_ensemble_isotonic", float(brier_score_loss(y_test, ensemble)), float(log_loss(y_test, ensemble, labels=[0, 1])), float(roc_auc_score(y_test, ensemble))),
             ModelScore("temporal_prevalence_baseline", float(brier_score_loss(y_test, prevalence)), float(log_loss(y_test, prevalence, labels=[0, 1])), None),
             ModelScore("seasonal_dayofweek_baseline", float(brier_score_loss(y_test, seasonal)), float(log_loss(y_test, seasonal, labels=[0, 1])), None),
         ]
         return ValidationReport(train_end, cal_end - train_end, n - cal_end, tuple(scores), False, True)
 
     def _predict_pair(self, X: pd.DataFrame) -> tuple[np.ndarray, np.ndarray]:
-        if self._model is None or self._secondary is None or self._calibrator is None:
+        if self._model is None or self._secondary is None or self._calibrator is None or self._ensemble_calibrator is None:
             raise RuntimeError("model is not fitted")
         X = X.loc[:, self._feature_names]
-        raw = np.clip(self._model.predict_proba(X)[:, 1], 1e-8, 1 - 1e-8)
-        calibrated = np.asarray(self._calibrator.predict(raw), dtype=float)
-        secondary = np.clip(self._secondary.predict_proba(X)[:, 1], 1e-8, 1 - 1e-8)
-        if not np.isfinite(calibrated).all() or not np.isfinite(secondary).all():
+        logistic_raw = np.clip(self._model.predict_proba(X)[:, 1], 1e-8, 1 - 1e-8)
+        tree_raw = np.clip(self._secondary.predict_proba(X)[:, 1], 1e-8, 1 - 1e-8)
+        ensemble_raw = (logistic_raw + tree_raw) / 2.0
+        ensemble = np.asarray(self._ensemble_calibrator.predict(ensemble_raw), dtype=float)
+        if not np.isfinite(ensemble).all() or not np.isfinite(tree_raw).all():
             raise RuntimeError("non-finite forecast produced")
-        return calibrated, secondary
+        return ensemble, tree_raw
 
     def predict_probability(self, X: pd.DataFrame) -> np.ndarray:
-        calibrated, secondary = self._predict_pair(X)
-        return (calibrated + secondary) / 2.0
+        ensemble, _ = self._predict_pair(X)
+        return ensemble
 
     def forecast(
         self,
@@ -143,11 +149,11 @@ class LongitudinalForecaster:
         if origin is None:
             raise ValueError("origin_time must be timezone-aware")
         verify_point_in_time_binding(X.loc[:, self._feature_names], feature_bindings, origin_time=origin, expected_fingerprint=point_in_time_fingerprint)
-        logistic, tree = self._predict_pair(X)
-        disagreement = float(abs(logistic[-1] - tree[-1]))
+        ensemble, tree = self._predict_pair(X)
+        disagreement = float(abs(ensemble[-1] - tree[-1]))
         if model_disagreement:
             disagreement = max(disagreement, model_disagreement)
-        p = float((logistic[-1] + tree[-1]) / 2.0)
+        p = float(ensemble[-1])
         aleatoric = min(1.0, 2.0 * p * (1.0 - p))
         epistemic = min(1.0, 1.0 / np.sqrt(max(1, self._train_rows)))
         parameter = min(1.0, 1.0 / np.sqrt(max(1, self._calibration_rows)))
