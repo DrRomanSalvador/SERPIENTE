@@ -3,7 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from hashlib import sha256
-from typing import Any
+from typing import Any, Sequence
 
 import numpy as np
 import pandas as pd
@@ -15,6 +15,7 @@ from sklearn.pipeline import make_pipeline
 from sklearn.preprocessing import StandardScaler
 
 from .contracts import Forecast
+from .pit_binding import FeatureBinding, verify_point_in_time_binding
 
 
 @dataclass(frozen=True, slots=True)
@@ -36,7 +37,7 @@ class ValidationReport:
 
 
 class LongitudinalForecaster:
-    """Binary longitudinal forecaster with temporal holdout, monotonic calibration and model disagreement."""
+    """Binary longitudinal forecaster with temporal holdout, calibration and model disagreement."""
 
     def __init__(self, *, random_state: int = 17) -> None:
         self.random_state = random_state
@@ -125,10 +126,23 @@ class LongitudinalForecaster:
         calibrated, secondary = self._predict_pair(X)
         return (calibrated + secondary) / 2.0
 
-    def forecast(self, X: pd.DataFrame, *, origin_time: datetime, target: str, horizon: str, regime: str, provenance: tuple[str, ...], point_in_time_fingerprint: str, model_disagreement: float = 0.0) -> Forecast:
+    def forecast(
+        self,
+        X: pd.DataFrame,
+        *,
+        origin_time: datetime,
+        target: str,
+        horizon: str,
+        regime: str,
+        provenance: tuple[str, ...],
+        point_in_time_fingerprint: str,
+        feature_bindings: Sequence[FeatureBinding],
+        model_disagreement: float = 0.0,
+    ) -> Forecast:
         origin = origin_time.astimezone(timezone.utc) if origin_time.tzinfo else None
         if origin is None:
             raise ValueError("origin_time must be timezone-aware")
+        verify_point_in_time_binding(X.loc[:, self._feature_names], feature_bindings, origin_time=origin, expected_fingerprint=point_in_time_fingerprint)
         logistic, tree = self._predict_pair(X)
         disagreement = float(abs(logistic[-1] - tree[-1]))
         if model_disagreement:
