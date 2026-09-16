@@ -9,7 +9,6 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import StrEnum
-from math import isfinite
 from typing import Sequence
 
 import numpy as np
@@ -53,6 +52,7 @@ class QuantitativeMethodAudit:
     inference_type: InferenceType
     capability_not_authorized: tuple[str, ...]
     provenance: tuple[str, ...]
+    temporal_requirements: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
         required = (self.method_id, self.phenomenon, self.scientific_question,
@@ -66,6 +66,8 @@ class QuantitativeMethodAudit:
             raise ValueError("quantitative audit requires uncertainty, benchmarks and falsification")
         if not self.validation or not self.provenance or not self.capability_not_authorized:
             raise ValueError("quantitative audit requires validation, provenance and capability boundary")
+        if self.temporal_requirements and any(not x.strip() for x in self.temporal_requirements):
+            raise ValueError("temporal requirements must not contain empty values")
 
 
 @dataclass(frozen=True, slots=True)
