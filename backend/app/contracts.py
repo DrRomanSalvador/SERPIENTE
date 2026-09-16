@@ -164,6 +164,7 @@ class Forecast:
     model_version: str | None = None
     data_vintage: str | None = None
     configuration_digest: str | None = None
+    interval_semantics: str = "HEURISTIC_UNCALIBRATED"
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "origin_time", _utc(self.origin_time, "origin_time"))
@@ -174,9 +175,11 @@ class Forecast:
             raise ValueError("probability and model disagreement must be in [0,1]")
         if self.lower > self.upper or not self.provenance or not self.point_in_time_fingerprint:
             raise ValueError("invalid forecast interval, provenance or point-in-time fingerprint")
-        for name, value in (("model_version", self.model_version), ("data_vintage", self.data_vintage), ("configuration_digest", self.configuration_digest)):
+        for name, value in (("model_version", self.model_version), ("data_vintage", self.data_vintage), ("configuration_digest", self.configuration_digest,)):
             if value is not None and not value.strip():
                 raise ValueError(f"{name} cannot be blank")
+        if self.interval_semantics not in {"HEURISTIC_UNCALIBRATED", "CALIBRATED_PREDICTIVE_INTERVAL"}:
+            raise ValueError("unsupported interval semantics")
 
 
 @dataclass(frozen=True, slots=True)
