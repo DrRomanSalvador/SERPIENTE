@@ -1,16 +1,12 @@
-"""Execute bounded scientific work against concrete SERPIENTE runtime objects.
-
-The executor performs only analyses supported by the information carried by the
-runtime object. It records inconclusive or externally blocked outcomes instead
-of promoting epistemic status. This closes the runtime finding -> work -> result
-boundary without pretending that a single runtime object constitutes validation.
-"""
+"""Execute bounded scientific work against concrete SERPIENTE runtime objects."""
 from __future__ import annotations
 
 from dataclasses import dataclass
 from enum import StrEnum
+from math import log
 
 from .contracts import Forecast, Observation, Signal
+from .outcomes import ForecastOutcome
 from .scientific_discovery_engine import ScientificWork
 
 
@@ -66,8 +62,6 @@ def _base_result(work: ScientificWork, obj: Observation | Signal | Forecast, out
 
 def execute_scientific_work(work: ScientificWork, obj: Observation | Signal | Forecast) -> ScientificWorkResult:
     """Execute the strongest analysis justified by one concrete runtime object."""
-    runtime_id = _runtime_id(obj)
-
     if isinstance(obj, Observation):
         temporal_ok = obj.event_time <= obj.publication_time <= obj.acquisition_time
         if not temporal_ok:
@@ -75,32 +69,27 @@ def execute_scientific_work(work: ScientificWork, obj: Observation | Signal | Fo
                 work, obj, ExecutionOutcome.REJECTED,
                 "observation temporal ordering is invalid",
                 (f"event_time={obj.event_time.isoformat()}", f"publication_time={obj.publication_time.isoformat()}", f"acquisition_time={obj.acquisition_time.isoformat()}"),
-                "REJECTED",
-                True,
+                "REJECTED", True,
             )
         finding = (
-            "observation contract is temporally coherent and provenance-bearing; "
-            "a single observation cannot distinguish phenomenon drift from measurement, "
-            "reporting, denominator, coverage, or ascertainment drift"
+            "observation contract is temporally coherent and provenance-bearing; a single observation "
+            "cannot distinguish phenomenon drift from measurement, reporting, denominator, coverage, or ascertainment drift"
         )
         return _base_result(
             work, obj, ExecutionOutcome.INCONCLUSIVE, finding,
             (f"source={obj.source_id}", f"dataset={obj.dataset_id}", f"variable={obj.variable_id}", f"revision={obj.revision}", f"known_at_acquisition={obj.known_at(obj.acquisition_time)}"),
-            "OBSERVATION",
-            True,
+            "OBSERVATION", True,
         )
 
     if isinstance(obj, Signal):
         finding = (
-            "signal is numerically well-formed and provenance-bearing, but the current "
-            "Signal contract contains no event timestamp; temporal precedence, lead time, "
-            "and change-point claims are therefore not identifiable from this object"
+            "signal is numerically well-formed and provenance-bearing, but the current Signal contract "
+            "contains no event timestamp; temporal precedence, lead time, and change-point claims are not identifiable from this object"
         )
         return _base_result(
             work, obj, ExecutionOutcome.INCONCLUSIVE, finding,
             (f"anomaly_score={obj.anomaly_score}", f"trend={obj.trend}", f"acceleration={obj.acceleration}", f"volatility={obj.volatility}"),
-            "SIGNAL",
-            True,
+            "SIGNAL", True,
         )
 
     probability_ok = 0.0 <= obj.probability <= 1.0
@@ -111,16 +100,38 @@ def execute_scientific_work(work: ScientificWork, obj: Observation | Signal | Fo
             work, obj, ExecutionOutcome.REJECTED,
             "forecast contract fails a structural validity check",
             (f"probability_ok={probability_ok}", f"interval_ok={interval_ok}", f"pit_present={pit_present}"),
-            "REJECTED",
-            True,
+            "REJECTED", True,
         )
     return _base_result(
         work, obj, ExecutionOutcome.BLOCKED_EXTERNAL,
         "forecast is structurally eligible, but predictive scoring requires an outcome observed after forecast origin; no outcome is carried by the runtime Forecast object",
         (f"origin_time={obj.origin_time.isoformat()}", f"horizon={obj.horizon}", f"target={obj.target}", f"pit={obj.point_in_time_fingerprint}"),
-        "PREDICTION",
-        True,
+        "PREDICTION", True,
     )
 
 
-__all__ = ["ExecutionOutcome", "ScientificWorkResult", "execute_scientific_work"]
+def execute_forecast_outcome_scoring(work: ScientificWork, outcome: ForecastOutcome) -> ScientificWorkResult:
+    """Score one realized forecast-outcome pair without claiming calibration or validation."""
+    brier = outcome.brier_error
+    p = min(max(outcome.predicted_probability, 1e-8), 1 - 1e-8)
+    log_loss = float(-(outcome.observed * log(p) + (1 - outcome.observed) * log(1 - p)))
+    provenance = tuple(dict.fromkeys((*work.provenance, *outcome.provenance, f"outcome:{outcome.prediction_id}")))
+    return ScientificWorkResult(
+        work_id=work.work_id,
+        runtime_id=outcome.prediction_id,
+        outcome=ExecutionOutcome.EXECUTED,
+        finding=(f"single forecast-outcome pair scored: brier={brier:.12g}; log_loss={log_loss:.12g}; "
+                 "single-pair scoring does not establish calibration, discrimination, generalization, or prospective validity"),
+        evidence=(
+            f"origin_time={outcome.origin_time.isoformat()}", f"outcome_time={outcome.outcome_time.isoformat()}",
+            f"target={outcome.target}", f"horizon={outcome.horizon}", f"observed={outcome.observed}",
+            f"predicted_probability={outcome.predicted_probability}", f"brier={brier:.12g}", f"log_loss={log_loss:.12g}",
+        ),
+        epistemic_state="EVALUATED_OUTCOME",
+        new_work_required=True,
+        capability_not_authorized=tuple(dict.fromkeys((*work.capability_not_authorized, "calibration from a single pair", "incremental predictive value without a paired baseline"))),
+        provenance=provenance,
+    )
+
+
+__all__ = ["ExecutionOutcome", "ScientificWorkResult", "execute_scientific_work", "execute_forecast_outcome_scoring"]
