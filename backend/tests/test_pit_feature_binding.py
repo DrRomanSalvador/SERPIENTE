@@ -33,3 +33,19 @@ def test_tampered_feature_value_is_rejected():
     fingerprint = point_in_time_fingerprint(frame, bindings, origin_time=origin)
     with pytest.raises(ValueError, match="does not bind"):
         verify_point_in_time_binding(tampered, bindings, origin_time=origin, expected_fingerprint=fingerprint)
+
+
+def test_outcome_derived_feature_is_rejected():
+    origin = datetime(2026, 1, 10, tzinfo=timezone.utc)
+    frame = pd.DataFrame({"x": [3.5]})
+    bindings = (FeatureBinding("x", ("outcome-1",), datetime(2026, 1, 9, tzinfo=timezone.utc), ("src-v1",), derived_from_outcome=True),)
+    with pytest.raises(ValueError, match="not eligible"):
+        point_in_time_fingerprint(frame, bindings, origin_time=origin)
+
+
+def test_future_derived_feature_is_rejected():
+    origin = datetime(2026, 1, 10, tzinfo=timezone.utc)
+    frame = pd.DataFrame({"x": [3.5]})
+    bindings = (FeatureBinding("x", ("obs-x-1",), datetime(2026, 1, 9, tzinfo=timezone.utc), ("src-v1",), future_derived=True),)
+    with pytest.raises(ValueError, match="not eligible"):
+        point_in_time_fingerprint(frame, bindings, origin_time=origin)
