@@ -10,6 +10,8 @@ import psycopg
 from .contracts import Alert, Event, Forecast, Observation, Signal
 from .outcomes import ForecastOutcome
 from .response import ResponseRecord
+from .scientific_discovery_engine import ScientificClaim, ScientificWork
+from .scientific_work_execution import ScientificWorkResult
 
 
 class PostgresRuntimeStore:
@@ -46,6 +48,42 @@ class PostgresRuntimeStore:
         with self.db.cursor() as cur:
             cur.execute("INSERT INTO serpiente_forecasts(id,origin_time,payload) VALUES (%s,%s,%s::jsonb)", (str(item.forecast_id), item.origin_time, self._json(asdict(item))))
 
+    def scientific_work(self, item: ScientificWork) -> None:
+        encoded = self._json(asdict(item))
+        fingerprint = json.dumps(item.fingerprint, sort_keys=True, default=str)
+        with self.db.cursor() as cur:
+            cur.execute("SELECT fingerprint,payload FROM serpiente_scientific_work WHERE id=%s FOR UPDATE", (item.work_id,))
+            existing = cur.fetchone()
+            if existing is not None:
+                if existing[0] != json.loads(fingerprint) or existing[1] != json.loads(encoded):
+                    raise RuntimeError("scientific work identity collision")
+                return
+            cur.execute("INSERT INTO serpiente_scientific_work(id,fingerprint,payload) VALUES (%s,%s::jsonb,%s::jsonb)", (item.work_id, fingerprint, encoded))
+
+    def scientific_result(self, item: ScientificWorkResult) -> None:
+        key = f"{item.work_id}:{item.runtime_id}"
+        encoded = self._json(asdict(item))
+        with self.db.cursor() as cur:
+            cur.execute("SELECT payload FROM serpiente_scientific_results WHERE id=%s FOR UPDATE", (key,))
+            existing = cur.fetchone()
+            if existing is not None:
+                if existing[0] != json.loads(encoded):
+                    raise RuntimeError("scientific result identity collision")
+                return
+            cur.execute("INSERT INTO serpiente_scientific_results(id,work_id,runtime_id,payload) VALUES (%s,%s,%s,%s::jsonb)", (key, item.work_id, item.runtime_id, encoded))
+
+    def scientific_claim(self, item: ScientificClaim) -> None:
+        encoded = self._json(asdict(item))
+        with self.db.cursor() as cur:
+            cur.execute("SELECT payload FROM serpiente_scientific_claims WHERE id=%s FOR UPDATE", (item.claim_id,))
+            existing = cur.fetchone()
+            if existing is not None and existing[0] != json.loads(encoded):
+                raise RuntimeError("scientific claim identity collision")
+            if existing is None:
+                cur.execute("INSERT INTO serpiente_scientific_claims(id,payload) VALUES (%s,%s::jsonb)", (item.claim_id, encoded))
+            else:
+                cur.execute("UPDATE serpiente_scientific_claims SET payload=%s::jsonb WHERE id=%s", (encoded, item.claim_id))
+
     def forecast_payload(self, prediction_id: str) -> dict[str, Any] | None:
         with self.db.cursor() as cur:
             cur.execute("SELECT payload FROM serpiente_forecasts WHERE id = %s", (prediction_id,))
@@ -71,8 +109,7 @@ class PostgresRuntimeStore:
                 existing = cur.fetchone()
                 if existing is None:
                     raise RuntimeError("forecast outcome disappeared during idempotent delivery")
-                existing_payload = existing[1]
-                if existing[0] != item.outcome_time or existing_payload != json.loads(encoded):
+                if existing[0] != item.outcome_time or existing[1] != json.loads(encoded):
                     raise RuntimeError("forecast outcome identity collision: existing outcome differs")
 
     def response(self, item: ResponseRecord) -> None:
@@ -95,7 +132,7 @@ class PostgresRuntimeStore:
                 cur.execute("INSERT INTO serpiente_responses(id,alert_id,decision_time,action_time,outcome_time,payload) VALUES (%s,%s,%s,%s,%s,%s::jsonb)", (item.response_id, item.alert_id, item.decision_time, item.action_time, item.outcome_time, encoded))
 
     def snapshot(self) -> dict[str, int]:
-        queries = (("observations", "SELECT COUNT(*) FROM serpiente_observations"), ("events", "SELECT COUNT(*) FROM serpiente_events"), ("signals", "SELECT COUNT(*) FROM serpiente_signals"), ("forecasts", "SELECT COUNT(*) FROM serpiente_forecasts"), ("alerts", "SELECT COUNT(*) FROM serpiente_alerts"), ("outcomes", "SELECT COUNT(*) FROM serpiente_outcomes"), ("responses", "SELECT COUNT(*) FROM serpiente_responses"))
+        queries = (("observations", "SELECT COUNT(*) FROM serpiente_observations"), ("events", "SELECT COUNT(*) FROM serpiente_events"), ("signals", "SELECT COUNT(*) FROM serpiente_signals"), ("forecasts", "SELECT COUNT(*) FROM serpiente_forecasts"), ("alerts", "SELECT COUNT(*) FROM serpiente_alerts"), ("outcomes", "SELECT COUNT(*) FROM serpiente_outcomes"), ("responses", "SELECT COUNT(*) FROM serpiente_responses"), ("scientific_work", "SELECT COUNT(*) FROM serpiente_scientific_work"), ("scientific_results", "SELECT COUNT(*) FROM serpiente_scientific_results"), ("scientific_claims", "SELECT COUNT(*) FROM serpiente_scientific_claims"))
         with self.db.cursor() as cur:
             result = {}
             for key, query in queries:
