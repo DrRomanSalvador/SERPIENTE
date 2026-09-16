@@ -38,15 +38,34 @@ class Observation:
     missing: bool = False
     transformation_lineage: tuple[str, ...] = ()
     observation_id: UUID | str = None
+    processing_time: datetime | None = None
+    revision_time: datetime | None = None
+    knowledge_time: datetime | None = None
+    vintage_id: str | None = None
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "event_time", _utc(self.event_time, "event_time"))
         object.__setattr__(self, "publication_time", _utc(self.publication_time, "publication_time"))
         object.__setattr__(self, "acquisition_time", _utc(self.acquisition_time, "acquisition_time"))
+        for name in ("processing_time", "revision_time", "knowledge_time"):
+            value = getattr(self, name)
+            if value is not None:
+                object.__setattr__(self, name, _utc(value, name))
         if self.event_time > self.acquisition_time:
             raise ValueError("event_time cannot be after acquisition_time")
         if self.publication_time > self.acquisition_time:
             raise ValueError("publication_time cannot be after acquisition_time")
+        if self.processing_time is not None and self.processing_time < self.acquisition_time:
+            raise ValueError("processing_time cannot precede acquisition_time")
+        if self.revision_time is not None and self.revision_time < self.acquisition_time:
+            raise ValueError("revision_time cannot precede acquisition_time")
+        if self.knowledge_time is not None:
+            if self.knowledge_time < self.acquisition_time:
+                raise ValueError("knowledge_time cannot precede acquisition_time")
+            if self.knowledge_time < self.publication_time:
+                raise ValueError("knowledge_time cannot precede publication_time")
+            if self.revision_time is not None and self.knowledge_time < self.revision_time:
+                raise ValueError("knowledge_time cannot precede revision_time")
         if self.revision < 0:
             raise ValueError("revision must be non-negative")
         if self.missing:
@@ -63,17 +82,20 @@ class Observation:
             raise ValueError("source, dataset, variable and semantic definition are required")
         if not self.provenance:
             raise ValueError("provenance is required")
+        if self.vintage_id is not None and not self.vintage_id.strip():
+            raise ValueError("vintage_id cannot be blank")
         object.__setattr__(self, "observation_id", self.observation_id or uuid4())
 
     def known_at(self, as_of: datetime) -> bool:
         as_of = _utc(as_of, "as_of")
-        return self.acquisition_time <= as_of and self.publication_time <= as_of
+        knowledge_time = self.knowledge_time or self.acquisition_time
+        return knowledge_time <= as_of and self.publication_time <= as_of
 
     def to_dict(self) -> dict[str, Any]:
         data = asdict(self)
-        data["event_time"] = self.event_time.isoformat()
-        data["publication_time"] = self.publication_time.isoformat()
-        data["acquisition_time"] = self.acquisition_time.isoformat()
+        for name in ("event_time", "publication_time", "acquisition_time", "processing_time", "revision_time", "knowledge_time"):
+            value = getattr(self, name)
+            data[name] = value.isoformat() if value is not None else None
         data["observation_id"] = str(self.observation_id)
         return data
 
@@ -139,6 +161,9 @@ class Forecast:
     regime: str
     provenance: tuple[str, ...]
     point_in_time_fingerprint: str
+    model_version: str | None = None
+    data_vintage: str | None = None
+    configuration_digest: str | None = None
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "origin_time", _utc(self.origin_time, "origin_time"))
@@ -149,6 +174,9 @@ class Forecast:
             raise ValueError("probability and model disagreement must be in [0,1]")
         if self.lower > self.upper or not self.provenance or not self.point_in_time_fingerprint:
             raise ValueError("invalid forecast interval, provenance or point-in-time fingerprint")
+        for name, value in (("model_version", self.model_version), ("data_vintage", self.data_vintage), ("configuration_digest", self.configuration_digest)):
+            if value is not None and not value.strip():
+                raise ValueError(f"{name} cannot be blank")
 
 
 @dataclass(frozen=True, slots=True)
