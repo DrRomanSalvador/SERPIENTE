@@ -1,8 +1,6 @@
 """Bridge concrete SERPIENTE runtime objects into executable scientific work."""
 from __future__ import annotations
-
 from typing import TypeAlias
-
 from .contracts import Forecast, Observation, Signal
 from .quantitative_scientific_audit import IdentificationStatus, InferenceType, QuantitativeMethodAudit
 from .quantitative_work_bridge import work_from_quantitative_audit
@@ -12,101 +10,31 @@ from .scientific_work_execution import ScientificWorkResult, execute_scientific_
 
 RuntimeObject: TypeAlias = Observation | Signal | Forecast
 
-
-def _provenance(obj: RuntimeObject) -> tuple[str, ...]:
-    return tuple(dict.fromkeys(obj.provenance))
-
-
-def _runtime_identity(obj: RuntimeObject) -> str:
-    if isinstance(obj, Observation):
-        return str(obj.observation_id)
-    if isinstance(obj, Signal):
-        return str(obj.signal_id)
-    return str(obj.forecast_id)
-
+def _provenance(obj: RuntimeObject) -> tuple[str, ...]: return tuple(dict.fromkeys(obj.provenance))
+def _runtime_identity(obj: RuntimeObject) -> str: return str(obj.observation_id if isinstance(obj, Observation) else obj.signal_id if isinstance(obj, Signal) else obj.forecast_id)
 
 def quantitative_audit_from_runtime(obj: RuntimeObject) -> QuantitativeMethodAudit:
-    """Construct a conservative audit from an actual runtime object."""
-    provenance = _provenance(obj)
-    if not provenance:
-        raise ValueError("runtime object requires provenance")
-
+    provenance=_provenance(obj)
+    if not provenance: raise ValueError("runtime object requires provenance")
     if isinstance(obj, Observation):
-        method_id = f"runtime-observation:{obj.source_id}:{obj.dataset_id}:{obj.variable_id}"
-        question = f"Does the observed {obj.variable_id} change represent a change in the underlying phenomenon?"
-        predictor_definitions = (obj.variable_id, f"denominator-status:{obj.variable_id}", f"coverage-process:{obj.source_id}", f"reporting-process:{obj.source_id}")
-        units = (obj.unit, "population/time", "coverage", "reporting")
-        alternatives = ("latent phenomenon changed", "measurement or reporting process changed", "denominator or coverage changed")
-        temporal_requirements = ("preserve event_time/available_at/publication_time/revision semantics", "evaluate the complete eligible observation history before temporal inference")
-        inference = InferenceType.DESCRIPTIVE
+        method_id=f"runtime-observation:{obj.source_id}:{obj.dataset_id}:{obj.variable_id}"; question=f"Does the observed {obj.variable_id} change represent a change in the underlying phenomenon?"; predictor_definitions=(obj.variable_id,f"denominator-status:{obj.variable_id}",f"coverage-process:{obj.source_id}",f"reporting-process:{obj.source_id}"); units=(obj.unit,"population/time","coverage","reporting"); alternatives=("latent phenomenon changed","measurement or reporting process changed","denominator or coverage changed"); temporal_requirements=("preserve event_time/available_at/publication_time/revision semantics","evaluate the complete eligible observation history before temporal inference"); inference=InferenceType.DESCRIPTIVE
     elif isinstance(obj, Signal):
-        method_id = f"runtime-signal:{obj.domain}:{obj.variable_id}"
-        question = f"Does signal {obj.variable_id} contain evidence of a phenomenon change beyond observation-process and model-residual explanations?"
-        predictor_definitions = (obj.variable_id, "anomaly_score", "trend", "acceleration", "volatility", "event_time:REQUIRED_FOR_TEMPORAL_INFERENCE")
-        units = ("runtime variable units", "probability", "variable units/time", "variable units/time^2", "variable units", "timestamp")
-        alternatives = ("underlying phenomenon changed", "observation-process or measurement changed", "model residual or transient noise produced the signal")
-        temporal_requirements = ("signal contract currently lacks an event timestamp", "do not infer lead time or temporal precedence from signal identity")
-        inference = InferenceType.DESCRIPTIVE
+        method_id=f"runtime-signal:{obj.domain}:{obj.variable_id}"; question=f"Does signal {obj.variable_id} contain evidence of a phenomenon change beyond observation-process and model-residual explanations?"; predictor_definitions=(obj.variable_id,"anomaly_score","trend","acceleration","volatility","event_time"); units=("runtime variable units","probability","variable units/time","variable units/time^2","variable units","timestamp"); alternatives=("underlying phenomenon changed","observation-process or measurement changed","model residual or transient noise produced the signal"); temporal_requirements=((f"event_time={obj.event_time.isoformat()}" if obj.event_time else "signal event_time is unavailable"),"use event_time for temporal precedence only when present"); inference=InferenceType.DESCRIPTIVE
     else:
-        method_id = f"runtime-forecast:{obj.target}:{obj.horizon}:{obj.regime}"
-        question = f"Does forecast {obj.target} add out-of-sample information beyond its stated baseline and remain temporally valid?"
-        predictor_definitions = (f"target:{obj.target}", f"horizon:{obj.horizon}", f"PIT:{obj.point_in_time_fingerprint}", "baseline", "outcome")
-        units = ("binary probability", "time horizon", "PIT fingerprint", "baseline probability", "binary outcome")
-        alternatives = ("forecast contains incremental predictive information", "apparent performance reflects baseline prevalence/seasonality", "apparent performance is affected by leakage, regime change, or outcome ascertainment")
-        temporal_requirements = ("preserve forecast origin, information cutoff and outcome-time semantics", "outcome must be after forecast origin", "information cutoff must not include future-derived data")
-        inference = InferenceType.PREDICTIVE
+        method_id=f"runtime-forecast:{obj.target}:{obj.horizon}:{obj.regime}"; question=f"Does forecast {obj.target} add out-of-sample information beyond its stated baseline and remain temporally valid?"; predictor_definitions=(f"target:{obj.target}",f"horizon:{obj.horizon}",f"PIT:{obj.point_in_time_fingerprint}","baseline","outcome"); units=("binary probability","time horizon","PIT fingerprint","baseline probability","binary outcome"); alternatives=("forecast contains incremental predictive information","apparent performance reflects baseline prevalence/seasonality","apparent performance is affected by leakage, regime change, or outcome ascertainment"); temporal_requirements=("preserve forecast origin, information cutoff and outcome-time semantics","outcome must be after forecast origin","information cutoff must not include future-derived data"); inference=InferenceType.PREDICTIVE
+    return QuantitativeMethodAudit(method_id=method_id,phenomenon=question,scientific_question=question,target_population="runtime-declared population; population semantics must be verified",outcome_definition=obj.variable_id if isinstance(obj,(Observation,Signal)) else obj.target,predictor_definitions=tuple(predictor_definitions),units=tuple(units),domain="SERPIENTE runtime scientific evaluation",assumptions=("runtime provenance identifies the represented object but does not establish real-world truth","observation-process semantics remain unresolved unless explicitly represented","causal effects are not authorized by this adapter"),identification=IdentificationStatus.PARTIALLY_IDENTIFIED,estimation="execute the appropriate descriptive, temporal, predictive, or observation-process estimator after data eligibility is verified",uncertainty=("measurement uncertainty","observation-process uncertainty","model/structural uncertainty"),sensitivity=alternatives,robustness=("alternative denominator specification","alternative lag/temporal specification","alternative baseline or model specification"),validation=("temporal holdout or point-in-time replay","out-of-sample comparison against a meaningful baseline","failure analysis by observation process and regime"),benchmarks=("persistence","historical mean","seasonal baseline","simple trend"),falsification=("the leading interpretation fails if the discriminating observation supports an observation-process explanation","the candidate forecast fails if a meaningful baseline performs at least as well under the predeclared metric"),inference_type=inference,capability_not_authorized=("causal effect","prospective predictive validity","operational effectiveness","real-world denominator correctness"),provenance=provenance,temporal_requirements=temporal_requirements)
 
-    return QuantitativeMethodAudit(
-        method_id=method_id, phenomenon=question, scientific_question=question,
-        target_population="runtime-declared population; population semantics must be verified",
-        outcome_definition=obj.variable_id if isinstance(obj, (Observation, Signal)) else obj.target,
-        predictor_definitions=tuple(predictor_definitions), units=tuple(units),
-        domain="SERPIENTE runtime scientific evaluation",
-        assumptions=("runtime provenance identifies the represented object but does not establish real-world truth", "observation-process semantics remain unresolved unless explicitly represented", "causal effects are not authorized by this adapter"),
-        identification=IdentificationStatus.PARTIALLY_IDENTIFIED,
-        estimation="execute the appropriate descriptive, temporal, predictive, or observation-process estimator after data eligibility is verified",
-        uncertainty=("measurement uncertainty", "observation-process uncertainty", "model/structural uncertainty"),
-        sensitivity=alternatives,
-        robustness=("alternative denominator specification", "alternative lag/temporal specification", "alternative baseline or model specification"),
-        validation=("temporal holdout or point-in-time replay", "out-of-sample comparison against a meaningful baseline", "failure analysis by observation process and regime"),
-        benchmarks=("persistence", "historical mean", "seasonal baseline", "simple trend"),
-        falsification=("the leading interpretation fails if the discriminating observation supports an observation-process explanation", "the candidate forecast fails if a meaningful baseline performs at least as well under the predeclared metric"),
-        inference_type=inference,
-        capability_not_authorized=("causal effect", "prospective predictive validity", "operational effectiveness", "real-world denominator correctness"),
-        provenance=provenance, temporal_requirements=temporal_requirements,
-    )
-
-
-def work_from_runtime_object(obj: RuntimeObject, *, owner: str = "ESPIA") -> tuple[ScientificWork, ...]:
-    return work_from_quantitative_audit(quantitative_audit_from_runtime(obj), owner=owner)
-
+def work_from_runtime_object(obj: RuntimeObject, *, owner: str="ESPIA") -> tuple[ScientificWork,...]: return work_from_quantitative_audit(quantitative_audit_from_runtime(obj),owner=owner)
 
 def claim_from_runtime_object(obj: RuntimeObject) -> ScientificClaim:
-    if isinstance(obj, Observation):
-        state = KnowledgeState.OBSERVATION
-        statement = f"Runtime observation {obj.observation_id} exists with the declared value and provenance."
-    elif isinstance(obj, Signal):
-        state = KnowledgeState.SIGNAL
-        statement = f"Runtime signal {obj.signal_id} exists with the declared anomaly statistics and provenance."
-    else:
-        state = KnowledgeState.PREDICTION
-        statement = f"Runtime forecast {obj.forecast_id} exists with the declared probability, horizon and PIT fingerprint."
-    return ScientificClaim(
-        claim_id=f"runtime-claim:{_runtime_identity(obj)}", statement=statement, state=state,
-        evidence_ids=_provenance(obj), assumptions=("runtime contract is faithfully represented",), provenance=_provenance(obj),
-        capability_authorized=("runtime object existence and declared semantics",),
-        capability_not_authorized=("causal effect", "prospective validity", "real-world denominator correctness"),
-    )
+    state=KnowledgeState.OBSERVATION if isinstance(obj,Observation) else KnowledgeState.SIGNAL if isinstance(obj,Signal) else KnowledgeState.PREDICTION
+    kind="observation" if isinstance(obj,Observation) else "signal" if isinstance(obj,Signal) else "forecast"
+    return ScientificClaim(f"runtime-claim:{_runtime_identity(obj)}",f"Runtime {kind} {_runtime_identity(obj)} exists with the declared semantics and provenance.",state,_provenance(obj),("runtime contract is faithfully represented",),_provenance(obj),("runtime object existence and declared semantics",),("causal effect","prospective validity","real-world denominator correctness"))
 
+def execute_runtime_scientific_cycle(obj: RuntimeObject, *, owner: str="ESPIA") -> tuple[tuple[ScientificWorkResult,...],ScientificClaim]:
+    claim=claim_from_runtime_object(obj); results=[]
+    for work in prioritize_work(work_from_runtime_object(obj,owner=owner)):
+        result=execute_scientific_work(work,obj); results.append(result); claim=update_claim_from_execution(claim,result)
+    return tuple(results),claim
 
-def execute_runtime_scientific_cycle(obj: RuntimeObject, *, owner: str = "ESPIA") -> tuple[tuple[ScientificWorkResult, ...], ScientificClaim]:
-    claim = claim_from_runtime_object(obj)
-    results: list[ScientificWorkResult] = []
-    for work in prioritize_work(work_from_runtime_object(obj, owner=owner)):
-        result = execute_scientific_work(work, obj)
-        results.append(result)
-        claim = update_claim_from_execution(claim, result)
-    return tuple(results), claim
-
-
-__all__ = ["RuntimeObject", "claim_from_runtime_object", "execute_runtime_scientific_cycle", "quantitative_audit_from_runtime", "work_from_runtime_object"]
+__all__=["RuntimeObject","claim_from_runtime_object","execute_runtime_scientific_cycle","quantitative_audit_from_runtime","work_from_runtime_object"]
