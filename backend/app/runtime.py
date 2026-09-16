@@ -11,6 +11,7 @@ from .engines import AlertEngine, EventEngine, PatternEngine, SignalEngine, Traj
 from .longitudinal import LongitudinalStateBuilder, PointInTimeStore
 from .mapping import ObservationMapper
 from .multihorizon import MultiHorizonForecaster
+from .pit_binding import FeatureBinding, point_in_time_fingerprint
 from .polling import PollJob, SourcePoller
 from .prediction import LongitudinalForecaster, ValidationReport
 from .quality import DataProcessMonitor
@@ -121,23 +122,47 @@ class SerpienteRuntime:
         self.multi_horizon = MultiHorizonForecaster(tuple(frames.keys()))
         return self.multi_horizon.fit(frames)
 
-    def forecast(self, features, *, origin_time: datetime, target: str, horizon: str, regime: str, provenance: tuple[str, ...]):
+    def forecast(
+        self,
+        features,
+        *,
+        feature_bindings: tuple[FeatureBinding, ...],
+        origin_time: datetime,
+        target: str,
+        horizon: str,
+        regime: str,
+        provenance: tuple[str, ...],
+    ):
         if origin_time.tzinfo is None:
             raise ValueError("origin_time must be timezone-aware")
-        fingerprint = self.observations.fingerprint(origin_time)
-        forecast = self.forecaster.forecast(features, origin_time=origin_time, target=target, horizon=horizon, regime=regime, provenance=provenance, point_in_time_fingerprint=fingerprint)
+        fingerprint = point_in_time_fingerprint(features, feature_bindings, origin_time=origin_time)
+        forecast = self.forecaster.forecast(features, feature_bindings=feature_bindings, origin_time=origin_time, target=target, horizon=horizon, regime=regime, provenance=provenance, point_in_time_fingerprint=fingerprint)
         if self.store:
             with self.store.transaction():
                 self.store.forecast(forecast)
         return forecast
 
-    def forecast_multi_horizon(self, features: dict[str, object], *, origin_time: datetime, target: str, regime: str, provenance: tuple[str, ...]):
+    def forecast_multi_horizon(
+        self,
+        features: dict[str, object],
+        *,
+        feature_bindings: dict[str, tuple[FeatureBinding, ...]],
+        origin_time: datetime,
+        target: str,
+        regime: str,
+        provenance: tuple[str, ...],
+    ):
         if self.multi_horizon is None:
             raise RuntimeError("multi-horizon models must be trained before forecasting")
         if origin_time.tzinfo is None:
             raise ValueError("origin_time must be timezone-aware")
-        fingerprint = self.observations.fingerprint(origin_time)
-        forecasts = self.multi_horizon.forecast(features, origin_time=origin_time, target=target, regime=regime, provenance=provenance, point_in_time_fingerprint=fingerprint)
+        fingerprints = {
+            horizon: point_in_time_fingerprint(features[horizon], feature_bindings[horizon], origin_time=origin_time)
+            for horizon in self.multi_horizon.horizons
+        }
+        if len(set(fingerprints.values())) != 1:
+            raise ValueError("multi-horizon forecasts must share one point-in-time origin fingerprint")
+        forecasts = self.multi_horizon.forecast(features, feature_bindings=feature_bindings, origin_time=origin_time, target=target, regime=regime, provenance=provenance, point_in_time_fingerprint=next(iter(fingerprints.values())))
         if self.store:
             with self.store.transaction():
                 for forecast in forecasts:
